@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cost-estimator-app
+  namespace: default
+  labels:
+    app: cost-estimator
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cost-estimator
+  template:
+    metadata:
+      labels:
+        app: cost-estimator
+    spec:
+      containers:
+      - name: cost-estimator
+        # Replace this with your actual container registry image path, e.g., your-registry.com/cost-estimator:latest
+        image: cost-estimator:latest 
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8501
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+        # Add any environment variables your app needs here
+        - name: GOOGLE_CLOUD_PROJECT
+          value: "YOUR_GCP_PROJECT_ID"
+        - name: STREAMLIT_SERVER_MAX_UPLOAD_SIZE
+          value: "200"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cost-estimator-service
+  namespace: default
+spec:
+  type: ClusterIP  # Change to LoadBalancer if you want it exposed externally directly
+  selector:
+    app: cost-estimator
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8501
