@@ -33,52 +33,7 @@ from ui_components import (
 # ── Auth guard / config handled by app.py ────────────────────────────────
 
 # ── Hide sidebar ───────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-/* ── Force dark number inputs ── */
-div[data-testid="stNumberInput"] > div,
-div[data-testid="stNumberInput"] input,
-div[data-testid="stNumberInput"] > div > div {
-  background-color: #1c2640 !important;
-  color: #e8edf8 !important;
-  border-color: #2a3555 !important;
-}
-div[data-testid="stNumberInput"] button {
-  background-color: #2a3555 !important;
-  color: #e8edf8 !important;
-}
-div[data-testid="stNumberInput"] button:hover {
-  background-color: #4f8ef7 !important;
-  color: #fff !important;
-}
-div[data-testid="stNumberInput"] label,
-div[data-testid="stTextInput"] label,
-div[data-testid="stSelectbox"] label,
-div[data-testid="stSlider"] label,
-div[data-testid="stDateInput"] label {
-  color: #8b95b0 !important;
-  font-size: 0.82rem !important;
-}
-div[data-testid="stTextInput"] input,
-div[data-testid="stDateInput"] input {
-  background-color: #1c2640 !important;
-  color: #e8edf8 !important;
-  border-color: #2a3555 !important;
-}
-div[data-testid="stSelectbox"] > div > div {
-  background-color: #1c2640 !important;
-  color: #e8edf8 !important;
-  border-color: #2a3555 !important;
-}
-div[data-testid="stExpander"],
-div[data-testid="stExpander"] > div,
-div[data-testid="stExpander"] summary {
-  background-color: #151d35 !important;
-  color: #e8edf8 !important;
-  border-color: #2a3555 !important;
-}
-</style>
-""", unsafe_allow_html=True)
+# (Removed page-level dark mode CSS overrides; theme.py now handles all input styling)
 
 inject_theme()
 
@@ -112,16 +67,14 @@ for k, v in DEFAULTS.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# ── Back navigation ────────────────────────────────────────────────────────
+# ── Top Navigation ────────────────────────────────────────────────────────
 client = st.session_state.get("selected_client")
-nav_back, nav_title = st.columns([1, 7])
-with nav_back:
-    if st.button("← Estimates" if client else "← Clients", key="back_nav",
-                 use_container_width=True):
-        if client:
-            st.switch_page("pages/2_Estimates.py")
-        else:
-            st.switch_page("pages/1_Clients.py")
+top_logo, top_nav = st.columns([10, 2])
+with top_logo:
+    st.image("assets/logo.png", width=180)
+with top_nav:
+    if st.button("← Clients", key="nav_back_clients_estimator", use_container_width=True):
+        st.switch_page("pages/1_Clients.py")
 
 # ── Page header ────────────────────────────────────────────────────────────
 page_header(
@@ -429,9 +382,9 @@ with st.expander("💰 One-Time Costs  (Year 1 only — included in PUPM calcula
     managed_svc_onetime = ot3.number_input("Managed Services Setup ($)", min_value=0, value=1000, step=100)
     one_time_total_display = perf_testing_cost + migration_cost + managed_svc_onetime
     st.markdown(
-        f"<div style='margin-top:0.5rem;padding:10px 16px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);'>"
-        f"<span style='font-size:0.82rem;color:var(--text2);'>Estimated One-Time Migration:</span> &nbsp; "
-        f"<strong style='color:var(--accent);'>${one_time_total_display:,.0f}</strong>"
+        f"<div style='margin: 1.5rem 0 0.5rem 0; padding:12px 18px; background:var(--surface2); border-radius:10px; border:1px solid var(--border); box-shadow:var(--shadow);'>"
+        f"<span style='font-size:0.85rem; font-weight:600; color:var(--text2);'>Estimated One-Time Migration:</span> &nbsp; "
+        f"<strong style='font-size:1.1rem; color:var(--accent);'>${one_time_total_display:,.0f}</strong>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -538,6 +491,7 @@ btn_label = (
     else f"🚀  Generate Cloud Sizing Requirements  —  {customer_name}"
 )
 
+st.markdown('<span class="green-btn-target"></span>', unsafe_allow_html=True)
 if st.button(btn_label, type="primary", use_container_width=True, key="btn_generate"):
     inputs = {
         "named_users": named_users_y1, "concurrent_users": concurrent_y1_auto,

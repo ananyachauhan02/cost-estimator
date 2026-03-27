@@ -19,15 +19,15 @@ import pandas as pd
 import streamlit as st
 
 def _metric(col, label, value):
-    """Dark-themed metric card replacing st.metric()"""
+    """Themed metric card replacing st.metric()"""
     col.markdown(f"""
-    <div style="background:#151d35;border:1.5px solid rgba(79,142,247,0.2);
-                border-top:3px solid #4f8ef7;border-radius:12px;
-                padding:1rem 1.25rem;box-shadow:0 4px 20px rgba(0,0,0,0.35);
+    <div style="background:var(--surface);border:1.5px solid var(--border);
+                border-top:3px solid var(--accent);border-radius:12px;
+                padding:1rem 1.25rem;box-shadow:var(--shadow);
                 margin-bottom:0.5rem;">
       <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;
-                  letter-spacing:0.08em;color:#8b95b0;margin-bottom:0.4rem;">{label}</div>
-      <div style="font-size:1.5rem;font-weight:800;color:#e8edf8;line-height:1;">{value}</div>
+                  letter-spacing:0.08em;color:var(--text2);margin-bottom:0.4rem;">{label}</div>
+      <div style="font-size:1.5rem;font-weight:800;color:var(--text);line-height:1;">{value}</div>
     </div>""", unsafe_allow_html=True)
 
 
@@ -239,14 +239,14 @@ def render_pricing_results(pricing: dict, updated_file: str = None):
         (k3, "3-Year (USD)",   "🗓️", f"${pricing['total_3year_usd']:,.2f}"),
     ]:
         col.markdown(f"""
-        <div style="background:#151d35;border:1.5px solid rgba(79,142,247,0.25);
-                    border-top:3px solid #4f8ef7;border-radius:12px;
-                    padding:1.2rem 1.5rem;box-shadow:0 4px 20px rgba(0,0,0,0.35);">
+        <div style="background:var(--surface);border:1.5px solid var(--border);
+                    border-top:3px solid var(--accent);border-radius:12px;
+                    padding:1.2rem 1.5rem;box-shadow:var(--shadow);">
           <div style="font-size:0.75rem;font-weight:600;text-transform:uppercase;
-                      letter-spacing:0.08em;color:#8b95b0;margin-bottom:0.5rem;">
+                      letter-spacing:0.08em;color:var(--text2);margin-bottom:0.5rem;">
             {icon} {label}
           </div>
-          <div style="font-size:1.8rem;font-weight:800;color:#e8edf8;letter-spacing:-0.02em;">
+          <div style="font-size:1.8rem;font-weight:800;color:var(--text);letter-spacing:-0.02em;">
             {value}
           </div>
         </div>""", unsafe_allow_html=True)
@@ -455,17 +455,19 @@ def render_db_selection(pricing: dict):
         bg_color = "#e8f5e9" if "Self" in hosting else "#fff8e6" if "RDS" in hosting else "#e3f2fd"
 
         cols[i].markdown(
-            f"""<div style="background:var(--surface);border-radius:12px;padding:14px;
-                           border:1px solid var(--border);height:100%;box-shadow:var(--shadow);">
-              <div style="font-size:13px;font-weight:700;color:var(--text);">{icon} {name}</div>
-              <div style="font-size:11px;color:var(--text2);margin-top:4px;">
+            f"""<div style="background:var(--surface); border-radius:12px; padding:14px;
+                           border:1px solid var(--border); min-height:200px; 
+                           display:flex; flex-direction:column;
+                           box-shadow:var(--shadow); transition: all 0.2s ease;">
+              <div style="font-size:13px; font-weight:700; color:var(--text); margin-bottom: 2px;">{icon} {name}</div>
+              <div style="font-size:11px; color:var(--text2); margin-top:2px; margin-bottom: 6px;">
                 <b>Hosting:</b> {hosting}
               </div>
-              <div style="font-size:18px;font-weight:800;color:var(--accent);margin:6px 0;">
-                ${monthly:,.0f}<span style="font-size:11px;font-weight:400;">/mo</span>
+              <div style="font-size:17px; font-weight:800; color:var(--accent); margin-bottom: 6px;">
+                ${monthly:,.0f}<span style="font-size:10px; font-weight:400;">/mo</span>
               </div>
-              <div style="font-size:10px;color:var(--text2);">{reason}</div>
-              <div style="font-size:10px;color:var(--text3);margin-top:4px;font-style:italic;">{note}</div>
+              <div style="font-size:9.5px; color:var(--text2); line-height: 1.35; flex-grow: 1;">{reason}</div>
+              <div style="font-size:9px; color:var(--text3); margin-top:8px; font-style:italic; line-height: 1.2;">{note}</div>
             </div>""",
             unsafe_allow_html=True,
         )

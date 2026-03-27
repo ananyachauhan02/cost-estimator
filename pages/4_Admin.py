@@ -14,11 +14,10 @@ require("manage_users", "Only Administrators can access the Admin Panel.")
 st.markdown("""
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap');
-  html, body, [data-testid="stAppViewContainer"] { font-family: 'Inter', sans-serif; background-color: var(--bg) !important; color: var(--text) !important; }
   
   .page-header {
     padding: 1.25rem 0 1.75rem;
-    border-bottom: 2px solid var(--border);
+    border-bottom: 2px solid #fadde1;
     margin-bottom: 2rem;
     position: relative;
   }
@@ -27,102 +26,57 @@ st.markdown("""
     position: absolute;
     bottom: -2px; left: 0;
     width: 60px; height: 2px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    background: linear-gradient(90deg, #ff69b4, #fadde1);
   }
-  .page-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.75rem; font-weight: 800; color: var(--text); letter-spacing: -0.025em; }
-  .page-subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+  .page-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.75rem; font-weight: 800; color: #111111; letter-spacing: -0.025em; }
+  .page-subtitle { color: #555555; font-size: 0.85rem; margin-top: 0.25rem; }
 
   /* ── Admin table rows ── */
   [data-testid="stHorizontalBlock"] {
-    border-bottom: 1px solid var(--border);
-    padding: 0.25rem 0;
+    border-bottom: 1px solid #fadde1;
+    padding: 0.4rem 0;
+  }
+  /* Remove border from the header column block to avoid double lines at top */
+  [data-testid="stHorizontalBlock"]:has(div[style*="font-weight:bold"]),
+  [data-testid="stHorizontalBlock"]:has(b),
+  [data-testid="stHorizontalBlock"]:has(strong) {
+     border-bottom: 2px solid #fadde1 !important;
   }
 
   /* ── Form panel ── */
   [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
-    background: var(--surface);
-    border: 1.5px solid var(--border);
-    border-top: 3px solid var(--accent2);
+    background: #ffffff;
+    border: 1.5px solid #fadde1;
+    border-top: 3px solid #ff69b4;
     border-radius: 14px;
     padding: 1.5rem !important;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
   }
 
-  /* ── Force dark on ALL Streamlit native containers ── */
-  .stApp, section[data-testid="stMain"], section[data-testid="stMain"] > *,
-  div[data-testid="stMainBlockContainer"], div[data-testid="stMainBlockContainer"] > *,
-  div[data-testid="block-container"], div[data-testid="block-container"] > *,
-  div[data-testid="stVerticalBlock"], div[data-testid="stHorizontalBlock"],
-  .main, .main > * { background-color: #0a0e1a !important; color: #e8edf8 !important; }
-  input, textarea, select, div[data-baseweb="input"] > div,
-  div[data-baseweb="base-input"] > input, div[data-baseweb="select"] > div,
-  div[data-testid="stDateInput"] input, div[data-testid="stTextInput"] input,
-  div[data-testid="stNumberInput"] input, div[role="listbox"], div[role="option"] {
-    background-color: #151d35 !important; color: #e8edf8 !important; border-color: #2a3555 !important;
-  }
-  div[data-testid="stExpander"], div[data-testid="stExpander"] > div {
-    background-color: #151d35 !important; border-color: #2a3555 !important;
-  }
-  div[data-testid="stAlert"] { background-color: #151d35 !important; border-color: #2a3555 !important; }
-
-  /* ── Auto-hide sidebar ──────────────────────────────────────────── */
-  [data-testid="stSidebar"] {
-    width: 60px !important;
-    min-width: 60px !important;
-    overflow: hidden !important;
-    transition: width 0.3s ease, min-width 0.3s ease !important;
-  }
-  [data-testid="stSidebar"]:hover {
-    width: 280px !important;
-    min-width: 280px !important;
-  }
-  [data-testid="stSidebar"]:not(:hover) [data-testid="stSidebarNavLink"] p,
-  [data-testid="stSidebar"]:not(:hover) [data-testid="stSidebarNavSectionHeader"],
-  [data-testid="stSidebar"]:not(:hover) .stMarkdown {
-    opacity: 0 !important;
-    transition: opacity 0.15s ease !important;
-  }
-  [data-testid="stSidebar"]:hover [data-testid="stSidebarNavLink"] p,
-  [data-testid="stSidebar"]:hover [data-testid="stSidebarNavSectionHeader"],
-  [data-testid="stSidebar"]:hover .stMarkdown {
-    opacity: 1 !important;
-    transition: opacity 0.25s ease 0.1s !important;
-  }
-  /* Hide collapse button */
-  [data-testid="stSidebarCollapseButton"],
-  button[data-testid="collapsedControl"] {
-    display: none !important;
-  }
-  /* Remove empty sidebar box */
-  [data-testid="stSidebarUserContent"] {
-    display: none !important;
-    height: 0 !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    overflow: hidden !important;
-  }
+  /* ── Page content tweaks ── */
 </style>
 """, unsafe_allow_html=True)
 
 inject_theme()
 
+# ── Top Navigation ────────────────────────────────────────────────────────
+logo_col, back_col, logout_col = st.columns([8, 2, 2])
+with logo_col:
+    st.image("assets/logo.png", width=180)
+with back_col:
+    if st.button("← Clients", key="admin_back_to_clients", use_container_width=True):
+        st.switch_page("pages/1_Clients.py")
+with logout_col:
+    if st.button("Logout", key="admin_logout", use_container_width=True):
+        st.session_state.logged_in = False
+        st.rerun()
+
 st.markdown("""
-<div class="page-header">
+<div class="page-header" style="margin-top:-1.5rem;">
     <div class="page-title">⚙️ Admin Panel</div>
     <div class="page-subtitle">Manage users and role-based access control</div>
 </div>
 """, unsafe_allow_html=True)
-
-# ── Header Nav ────────────────────────────────────────────────────────────
-nav_col1, nav_col2, nav_col3 = st.columns([1,1,6])
-with nav_col1:
-    if st.button("← Back to Clients", use_container_width=True):
-        st.switch_page("pages/1_Clients.py")
-with nav_col2:
-    if st.button("⏏ Logout", use_container_width=True):
-        st.session_state.clear()
-        st.rerun()
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -145,7 +99,7 @@ with col_list:
         h_role.markdown("**Role**")
         h_joined.markdown("**Joined**")
         h_action.markdown("**Actions**")
-        st.markdown("<hr style='margin: 0.5rem 0; border-color: var(--border);'>", unsafe_allow_html=True)
+
 
         # ── Table Rows ──
         for u in users:
@@ -199,7 +153,8 @@ with col_list:
                             st.rerun()
                         else:
                             st.error("Failed to delete.")
-            st.markdown("<hr style='margin: 0.25rem 0; border-color: var(--border); opacity: 0.3;'>", unsafe_allow_html=True)
+            # Fixed redundant horizontal lines
+
 
 with col_form:
     st.markdown("<h4 style='color: var(--text); font-family: \"Plus Jakarta Sans\", sans-serif;'>➕ Create New User</h4>", unsafe_allow_html=True)

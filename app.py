@@ -9,8 +9,8 @@ init_db()
 st.set_page_config(
     page_title="BusinessNext | Cost Estimator",
     layout="wide",
-    page_icon="☁️",
-    initial_sidebar_state="auto",
+    page_icon="assets/favicon.png",
+    initial_sidebar_state="expanded",
 )
 
 # ── Global styles ─────────────────────────────────────────────────────────
@@ -46,11 +46,25 @@ st.markdown("""
     margin-bottom: 0.3rem;
     filter: drop-shadow(0 0 16px rgba(79,142,247,0.25));
   }
+  .login-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: var(--text);
+    text-align: center;
+    margin-top: 0.5rem;
+    margin-bottom: 2rem;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
   .login-sub {
     color: var(--text2);
-    font-size: 0.88rem;
+    font-size: 0.95rem;
+    font-weight: 400;
     text-align: center;
     margin-bottom: 2.5rem;
+    opacity: 0.8;
   }
 
   /* Input fields */
@@ -98,24 +112,12 @@ def login_ui():
     # Narrow centred column for all content
     _, col, _ = st.columns([1.8, 2, 1.8])
     with col:
-        # Push everything down to roughly centre on screen
-        st.markdown("<div style='height: 15vh'></div>", unsafe_allow_html=True)
+        # Push everything down slightly
+        st.markdown("<div style='height: 2vh'></div>", unsafe_allow_html=True)
 
-        # Branding header
-        st.markdown("""
-        <div style="text-align:center; margin-bottom: 1.75rem;">
-          <div style="font-family:'Plus Jakarta Sans',sans-serif; font-size:2.2rem; font-weight:800;
-                      letter-spacing:-0.03em;
-                      background:linear-gradient(135deg,#60a5fa,#4f8ef7 40%,#00d4aa);
-                      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-                      filter:drop-shadow(0 0 16px rgba(79,142,247,0.25));">
-            ☁️ BusinessNext
-          </div>
-          <div style="color:var(--text2); font-size:0.88rem; margin-top:0.2rem; font-family:'Inter',sans-serif;">
-            Cloud Cost Estimator Platform
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+        # Branding logo
+        st.image("assets/logo.png", width=140)
+        st.markdown('<div class="login-title">Cloud Cost Estimator Portal</div>', unsafe_allow_html=True)
 
         email    = st.text_input("Email address", placeholder="admin@businessnext.com", key="login_email")
         password = st.text_input("Password",      placeholder="••••••••",              type="password", key="login_pass")
@@ -153,5 +155,7 @@ else:
         nav_dict["Administration"] = [admin_pg]
         
     pg = st.navigation(nav_dict, position="sidebar")
+
+
 
 pg.run()

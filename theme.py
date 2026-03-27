@@ -14,49 +14,109 @@ FORCE_DARK = """
 html, body,
 .stApp,
 [data-testid="stAppViewContainer"],
-[data-testid="stMain"],
+[data-testid="stMain"] {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Main block container (inner content) — use padding here instead */
 [data-testid="stMainBlockContainer"],
 [data-testid="block-container"],
-[data-testid="stVerticalBlock"],
-[data-testid="stHorizontalBlock"],
-[data-testid="stSidebar"],
-[data-testid="stSidebarContent"],
-[data-testid="stSidebarUserContent"],
-[data-testid="stHeader"],
-[data-testid="stToolbar"],
-[data-testid="stDecoration"],
-[data-testid="stStatusWidget"],
-section.main,
-.main,
-.block-container,
-div[class*="appview"],
-div[class*="main"],
-div[class*="block"] {
-  background-color: #0a0e1a !important;
-  color: #e8edf8 !important;
+.main .block-container {
+  padding-top: 0 !important;
+  padding-bottom: 1rem !important;
+  padding-left: 2rem !important;
+  padding-right: 2rem !important;
 }
 
-/* Sidebar specifically */
-[data-testid="stSidebar"],
-[data-testid="stSidebar"] > div,
-[data-testid="stSidebarContent"] {
-  background-color: #0f1629 !important;
-  border-right: 2px solid rgba(79,142,247,0.2) !important;
+header[data-testid="stHeader"] {
+    display: none !important;
 }
 
-/* Sidebar nav items */
-[data-testid="stSidebarNav"],
-[data-testid="stSidebarNavItems"],
-[data-testid="stSidebarNavLink"],
-[data-testid="stSidebarNavLink"] * {
-  background-color: #0f1629 !important;
-  color: #e8edf8 !important;
+/* Push primary logo to top edge only */
+[data-testid="stMainBlockContainer"] [data-testid="stImage"]:first-child img {
+    margin-left: 0 !important;
+    margin-top: -0.8rem !important;
+}
+
+
+/* ALL sidebar nav elements — Visibility & Sizing (Default State) */
+[data-testid="stSidebarNav"] {
+  padding-top: 2rem !important;
+}
+
+[data-testid="stSidebarNavLink"] p,
+[data-testid="stSidebarNavSectionHeader"],
+[data-testid="stSidebarNavLink"] span {
+  background-color: transparent !important;
+  color: #eeeeee !important;
+  font-size: 1.1rem !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+[data-testid="stSidebarNavLink"] svg {
+  width: 24px !important;
+  height: 24px !important;
+  margin-right: 0.8rem !important;
+  fill: #eeeeee !important;
+  color: #eeeeee !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Nav link base */
+[data-testid="stSidebarNavLink"] {
+  background-color: transparent !important;
+  border-radius: 6px !important;
+  margin: 1px 4px !important;
+  border-left: 3px solid transparent !important;
+}
+
+/* Hover state — prevent text background artifacts */
+[data-testid="stSidebarNavLink"]:hover,
+[data-testid="stSidebarNavLink"]:hover *,
+[data-testid="stSidebarNavLink"]:hover p,
+[data-testid="stSidebarNavLink"]:hover span {
+  background-color: #222222 !important;
+  color: #ffffff !important;
+}
+
+/* Active/selected — dark grey with pink accent, NO blue */
+[data-testid="stSidebarNavLink"][aria-current],
+[data-testid="stSidebarNavLink"][aria-current="page"],
+[data-testid="stSidebarNavLink"][aria-selected="true"] {
+  background-color: #2a2a2a !important;
+  border-left: 3px solid #ff69b4 !important;
+}
+[data-testid="stSidebarNavLink"][aria-current] *,
+[data-testid="stSidebarNavLink"][aria-current="page"] *,
+[data-testid="stSidebarNavLink"][aria-current="page"] p,
+[data-testid="stSidebarNavLink"][aria-current="page"] span,
+[data-testid="stSidebarNavLink"][aria-selected="true"] *,
+[data-testid="stSidebarNavLink"][aria-selected="true"] p,
+[data-testid="stSidebarNavLink"][aria-selected="true"] span {
+  background-color: transparent !important;
+  color: #ffffff !important;
+}
+
+/* Section headers */
+[data-testid="stSidebarNavSectionHeader"],
+[data-testid="stSidebarNavSectionHeader"] * {
+  background-color: transparent !important;
+  color: #666666 !important;
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
 }
 
 /* All inputs */
 input, textarea, select {
-  background-color: #1c2640 !important;
-  color: #e8edf8 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
   border: 1px solid #2a3555 !important;
 }
 
@@ -69,8 +129,8 @@ input, textarea, select {
 [data-testid="stDateInput"] input,
 [data-testid="stTimeInput"] input,
 [data-testid="stTextArea"] textarea {
-  background-color: #1c2640 !important;
-  color: #e8edf8 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
   border-color: #2a3555 !important;
 }
 
@@ -79,31 +139,49 @@ input, textarea, select {
 [data-baseweb="select"] > div,
 [data-baseweb="input"] > div,
 [data-baseweb="base-input"],
-[data-baseweb="base-input"] > div,
+[data-baseweb="base-input"] > div {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #2a3555 !important;
+}
+
+/* Hide the trailing cursor/box in dropdown search inputs */
+[data-testid="stSelectbox"] input,
+[data-baseweb="select"] input {
+  caret-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
 [data-baseweb="popover"],
 [data-baseweb="menu"],
 [role="listbox"],
 [role="option"],
 ul[role="listbox"],
 li[role="option"] {
-  background-color: #151d35 !important;
-  color: #e8edf8 !important;
-  border-color: #2a3555 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #dee2e6 !important;
 }
 
 /* Slider */
-[data-testid="stSlider"] > div > div > div,
-[data-testid="stSlider"] div[role="slider"] {
-  background-color: #2a3555 !important;
-}
+/* Removed overriding slider css so config.toml manages it */
 
 /* Expanders */
 [data-testid="stExpander"],
-[data-testid="stExpander"] > div,
-[data-testid="stExpander"] summary {
-  background-color: #151d35 !important;
+[data-testid="stExpander"] > div {
+  background-color: #ffffff !important;
   border-color: #2a3555 !important;
-  color: #e8edf8 !important;
+  color: #000000 !important;
+  margin: 1rem 0 !important;
+}
+
+[data-testid="stExpander"] summary {
+  background-color: #fadde1 !important;
+  border-color: #2a3555 !important;
+  color: #000000 !important;
 }
 
 /* Tabs */
@@ -112,8 +190,8 @@ li[role="option"] {
 [data-baseweb="tab-panel"],
 [role="tabpanel"],
 [role="tab"] {
-  background-color: #151d35 !important;
-  color: #e8edf8 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
   border-color: #2a3555 !important;
 }
 [aria-selected="true"] {
@@ -125,9 +203,9 @@ li[role="option"] {
 [data-testid="stAlert"],
 [data-testid="stAlert"] > div,
 [data-testid="stNotification"] {
-  background-color: #151d35 !important;
+  background-color: #ffffff !important;
   border-color: #2a3555 !important;
-  color: #e8edf8 !important;
+  color: #000000 !important;
 }
 
 /* Metrics */
@@ -135,8 +213,8 @@ li[role="option"] {
 [data-testid="stMetricValue"],
 [data-testid="stMetricLabel"],
 [data-testid="stMetricDelta"] {
-  background-color: #151d35 !important;
-  color: #e8edf8 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
 }
 
 /* Dataframes */
@@ -144,8 +222,8 @@ li[role="option"] {
 [data-testid="stDataFrame"] > div,
 [data-testid="stTable"],
 .stDataFrame iframe {
-  background-color: #151d35 !important;
-  color: #e8edf8 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
 }
 
 /* Checkboxes, radios */
@@ -153,13 +231,13 @@ li[role="option"] {
 [data-testid="stRadio"],
 [data-testid="stRadio"] > div,
 [data-testid="stCheckbox"] > label {
-  color: #e8edf8 !important;
+  color: #000000 !important;
 }
 
 /* All labels */
 label, .stMarkdown p, .stMarkdown span,
 p, span, li {
-  color: #e8edf8 !important;
+  color: #000000 !important;
 }
 
 /* Dividers */
@@ -179,10 +257,10 @@ THEME_CSS = """
 
 /* ── Root variables (Dark Mode Default) ─────────────────────── */
 :root {
-  --bg:         #0a0e1a;
-  --bg2:        #0f1629;
-  --surface:    #151d35;
-  --surface2:   #1c2640;
+  --bg:         #ffffff;
+  --bg2:        #000000;
+  --surface:    #f8f9fa;
+  --surface2:   #f1f3f5;
   --border:     #2a3555;
   --accent:     #4f8ef7;
   --accent2:    #7c5cfc;
@@ -196,9 +274,9 @@ THEME_CSS = """
   --error:      #ff4d6d;
   --info:       #4f8ef7;
 
-  --text:       #e8edf8;
-  --text2:      #8b95b0;
-  --text3:      #5a637a;
+  --text:       #000000;
+  --text2:      #333333;
+  --text3:      #555555;
   --radius:     12px;
   --radius-lg:  20px;
   --shadow:     0 8px 32px rgba(0,0,0,0.4);
@@ -218,72 +296,71 @@ section[data-testid="stSidebar"] + div,
 div[class*="appview-container"],
 div[class*="main"] {
   font-family: 'Inter', sans-serif !important;
-  background-color: #0a0e1a !important;
-  color: #e8edf8 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
 }
 
 .stApp {
-  background-color: #0a0e1a !important;
-  color: #e8edf8 !important;
-}
-
-/* Force all Streamlit section/frame backgrounds */
-.stApp > header,
-.stApp > div,
-.stApp section,
-.stApp > section {
-  background-color: #0a0e1a !important;
-}
-
-.main .block-container {
-  padding: 2rem 2.5rem !important;
-  max-width: 1400px !important;
-  background-color: #0a0e1a !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
 }
 
 /* ── Animated gradient header bar ───────────────────────────── */
 .bn-header {
-  background: var(--header-grad);
-  border: 1.5px solid var(--border);
+  background: #fffafd !important;
+  border: 1.5px solid #fadde1 !important;
   border-radius: var(--radius-lg);
-  padding: 2rem 2.5rem;
-  margin-bottom: 2rem;
+  padding: 2.25rem 2.75rem;
+  margin: 1.5rem 0 2.5rem 0 !important;
   position: relative;
   overflow: hidden;
   animation: fadeSlideDown 0.6s ease-out;
-  box-shadow: 0 4px 28px rgba(0,0,0,0.45), 0 1px 6px rgba(0,0,0,0.3);
+  box-shadow: 0 12px 48px rgba(255,105,180,0.1), 0 2px 12px rgba(0,0,0,0.03) !important;
 }
 
 .bn-header::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3), var(--accent));
-  background-size: 300% 100%;
-  animation: shimmer 3s linear infinite;
+  height: 4px;
+  background: linear-gradient(90deg, #ff69b4, #fadde1);
 }
 
-.bn-header::after {
-  content: '';
-  position: absolute;
-  top: -60%; right: -10%;
-  width: 400px; height: 400px;
-  background: radial-gradient(circle, rgba(79,142,247,0.08) 0%, transparent 70%);
-  pointer-events: none;
-}
+/* Shading removed as per request */
 
 .bn-header h1 {
   font-family: 'Plus Jakarta Sans', sans-serif !important;
-  font-size: 1.85rem !important;
+  font-size: 2rem !important;
   font-weight: 800 !important;
-  color: var(--text) !important;
-  margin: 0 0 0.25rem 0 !important;
-  letter-spacing: -0.025em;
+  color: #000000 !important;
+  margin: 0 0 0.35rem 0 !important;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
 }
 
 .bn-header p {
-  color: var(--text2) !important;
+  color: #444444 !important;
+  margin: 0 !important;
+  font-size: 0.95rem;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.bn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,105,180,0.1) !important;
+  border: 1px solid rgba(255,105,180,0.2) !important;
+  color: #ff69b4 !important;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 20px;
+  margin-top: 1rem;
+  letter-spacing: 0.03em;
+  box-shadow: 0 2px 8px rgba(255,105,180,0.08);
+}  color: #333333 !important;
   margin: 0 !important;
   font-size: 0.9rem;
   font-weight: 300;
@@ -371,7 +448,7 @@ div[class*="main"] {
   overflow: hidden;
   animation: fadeSlideUp 0.6s ease-out both;
   transition: transform 0.2s, box-shadow 0.2s;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.25);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04) !important;
 }
 
 .kpi-card:hover {
@@ -522,45 +599,63 @@ div[class*="main"] {
 }
 
 /* ── Streamlit overrides ──────────────────────────────────────── */
-.stButton > button {
+.stButton > button,
+.stButton > button[kind="primary"],
+.stButton > button[kind="secondary"] {
   font-family: 'Plus Jakarta Sans', sans-serif !important;
   font-weight: 600 !important;
   border-radius: 10px !important;
   transition: all 0.2s ease !important;
-}
-
-.stButton > button[kind="primary"] {
-  background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
+  background: #4f8ef7 !important;
   border: none !important;
-  color: white !important;
+  color: #ffffff !important;
   box-shadow: 0 4px 16px rgba(79,142,247,0.3) !important;
 }
 
-.stButton > button[kind="primary"]:hover {
+.stButton > button:hover,
+.stButton > button[kind="primary"]:hover,
+.stButton > button[kind="secondary"]:hover {
   transform: translateY(-2px) !important;
   box-shadow: 0 8px 24px rgba(79,142,247,0.4) !important;
+  background: #73a5f8 !important;
 }
 
-.stButton > button[kind="secondary"] {
-  background: var(--surface2) !important;
-  border: 1px solid var(--border) !important;
-  color: var(--text2) !important;
+/* Specific target for the Green Generate buttons */
+div[data-testid="stMarkdownContainer"]:has(.green-btn-target) {
+  display: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+div.element-container:has(.green-btn-target) + div.element-container .stButton > button {
+  background: #aacc00 !important;
+  box-shadow: 0 4px 16px rgba(170,204,0,0.3) !important;
+}
+
+div.element-container:has(.green-btn-target) + div.element-container .stButton > button:hover {
+  background: #bbee00 !important;
+  box-shadow: 0 8px 24px rgba(170,204,0,0.4) !important;
 }
 
 .stTextInput > div > div > input,
 .stNumberInput > div > div > input,
-.stSelectbox > div > div,
-.stDateInput > div > div > input {
-  background: var(--surface2) !important;
+.stSelectbox > div > div {
+  background: #ffffff !important;
   border: 1px solid var(--border) !important;
   border-radius: 8px !important;
   color: var(--text) !important;
 }
 
+div[data-testid="stDateInput"] input {
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
 .stTextInput > div > div > input:focus,
 .stNumberInput > div > div > input:focus {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(79,142,247,0.2) !important;
+  border-color: #ff69b4 !important;
+  box-shadow: 0 0 0 2px rgba(255,105,180,0.2) !important;
 }
 
 label, .stCheckbox label, .stSelectbox label {
@@ -610,113 +705,96 @@ label, .stCheckbox label, .stSelectbox label {
 .stWarning { background: rgba(240,165,0,0.08) !important;  border-color: var(--warning) !important; color: var(--warning) !important; }
 .stError   { background: rgba(255,77,109,0.08) !important; border-color: var(--error) !important; color: var(--error) !important; }
 
-/* ── Auto-hide sidebar ──────────────────────────────────────────── */
-  [data-testid="stSidebar"] {
-    width: 56px !important;
-    min-width: 56px !important;
-    overflow: hidden !important;
-    transition: width 0.3s cubic-bezier(0.4,0,0.2,1), min-width 0.3s cubic-bezier(0.4,0,0.2,1) !important;
-    background: #0f1629 !important;
-    border-right: 1px solid rgba(79,142,247,0.15) !important;
+/* ── Fixed Sidebar Styling ────────────────────────────────────────── */
+  /* FORCE 200px Sidebar regardless of Streamlit state */
+  [data-testid="stSidebar"],
+  [data-testid="stSidebar"][aria-expanded="true"],
+  [data-testid="stSidebar"][aria-expanded="false"] {
+    width: 200px !important;
+    min-width: 200px !important;
+    max-width: 200px !important;
+    transform: none !important;
+    transition: none !important;
+    background: #111111 !important;
+    border-right: 1px solid rgba(255,255,255,0.1) !important;
     box-shadow: 2px 0 16px rgba(0,0,0,0.3) !important;
   }
-  [data-testid="stSidebar"]:hover {
-    width: 260px !important;
-    min-width: 260px !important;
-    border-right: 1px solid rgba(79,142,247,0.3) !important;
-    box-shadow: 4px 0 24px rgba(0,0,0,0.5) !important;
+  
+  [data-testid="stSidebarContent"] {
+    width: 200px !important;
+    min-width: 200px !important;
+    background: #111111 !important;
+    transition: none !important;
+  }
+  
+  /* Hide all built-in toggle arrows */
+  [data-testid="stSidebarCollapseButton"],
+  button[data-testid="collapsedControl"] {
+    display: none !important;
   }
 
-  /* Clean up the nav items */
+  /* Navigation Items Visibility & Sizing */
   [data-testid="stSidebarNavLink"] {
     border-radius: 10px !important;
-    margin: 2px 6px !important;
-    padding: 8px 10px !important;
-    transition: background 0.2s ease !important;
+    margin: 4px 8px !important;
+    padding: 10px 14px !important;
     display: flex !important;
     align-items: center !important;
-    gap: 10px !important;
+    gap: 12px !important;
     white-space: nowrap !important;
     overflow: hidden !important;
+    transition: background 0.2s ease !important;
   }
   [data-testid="stSidebarNavLink"]:hover {
-    background: rgba(79,142,247,0.12) !important;
+    background: rgba(255,255,255,0.08) !important;
   }
   [data-testid="stSidebarNavLink"][aria-current="page"] {
-    background: rgba(79,142,247,0.18) !important;
-    border-left: 3px solid #4f8ef7 !important;
+    background: rgba(255,255,255,0.12) !important;
+    border-left: 3px solid #ff0055 !important;
   }
 
-  /* Icons always visible and centered when collapsed */
+  /* Icons permanently visible and bold */
   [data-testid="stSidebarNavLink"] svg,
   [data-testid="stSidebarNavLink"] img,
   [data-testid="stSidebarNavLink"] span:first-child {
-    min-width: 20px !important;
-    flex-shrink: 0 !important;
+    min-width: 22px !important; width: 22px !important; height: 22px !important;
+    flex-shrink: 0 !important; opacity: 1 !important;
+    fill: #ffffff !important; color: #ffffff !important;
+  }
+
+  /* Labels permanently visible */
+  [data-testid="stSidebarNavLink"] p {
     opacity: 1 !important;
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+    color: #ffffff !important;
   }
 
-  /* Hide text labels when collapsed */
-  [data-testid="stSidebar"]:not(:hover) [data-testid="stSidebarNavLink"] p,
-  [data-testid="stSidebar"]:not(:hover) [data-testid="stSidebarNavLink"] span:not(:first-child),
-  [data-testid="stSidebar"]:not(:hover) [data-testid="stSidebarNavSectionHeader"],
-  [data-testid="stSidebar"]:not(:hover) .stMarkdown {
-    opacity: 0 !important;
-    width: 0 !important;
-    overflow: hidden !important;
-    transition: opacity 0.15s ease, width 0.15s ease !important;
-  }
-
-  [data-testid="stSidebar"]:hover [data-testid="stSidebarNavLink"] p,
-  [data-testid="stSidebar"]:hover [data-testid="stSidebarNavLink"] span:not(:first-child),
-  [data-testid="stSidebar"]:hover [data-testid="stSidebarNavSectionHeader"],
-  [data-testid="stSidebar"]:hover .stMarkdown {
-    opacity: 1 !important;
-    width: auto !important;
-    transition: opacity 0.25s ease 0.1s, width 0.25s ease !important;
-  }
-
-  /* Section headers styling */
+  /* Section headers */
   [data-testid="stSidebarNavSectionHeader"] {
     font-size: 0.65rem !important;
     font-weight: 700 !important;
     text-transform: uppercase !important;
     letter-spacing: 0.1em !important;
-    color: rgba(79,142,247,0.6) !important;
-    padding: 12px 16px 4px !important;
-    white-space: nowrap !important;
+    color: rgba(255,255,255,0.5) !important;
+    padding: 18px 16px 8px !important;
+    opacity: 1 !important;
   }
 
-  /* A subtle vertical accent line when collapsed */
-  [data-testid="stSidebar"]:not(:hover)::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translateX(-50%) translateY(-50%);
-    width: 2px;
-    height: 40px;
-    background: linear-gradient(180deg, transparent, rgba(79,142,247,0.4), transparent);
-    border-radius: 2px;
-    pointer-events: none;
-  }
-
-  /* Hide collapse button */
-  [data-testid="stSidebarCollapseButton"],
-  button[data-testid="collapsedControl"] { display: none !important; }
-  [data-testid="stSidebarUserContent"] {
-    display: none !important;
-    height: 0 !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
+  /* Sidebar Logo centering */
+  [data-testid="stSidebar"] [data-testid="stImage"],
+  [data-testid="stSidebar"] .logo-container { display: flex !important; justify-content: center !important; width: 100% !important; 
+    display: flex !important;
+    justify-content: center !important;
+    padding-top: 2rem !important;
+    margin-bottom: 1rem !important;
   }
 
   [data-testid="stSidebar"] .stMarkdown h1,
   [data-testid="stSidebar"] .stMarkdown h2,
   [data-testid="stSidebar"] .stMarkdown h3 {
     font-family: 'Plus Jakarta Sans', sans-serif !important;
-    color: var(--text) !important;
+    color: #ffffff !important;
   }
 
 /* ── Animations ───────────────────────────────────────────────── */
@@ -763,33 +841,33 @@ div[data-testid="stNumberInput"] > div,
 div[data-testid="stNumberInput"] input,
 div[data-testid="stNumberInput"] button,
 div[data-testid="stNumberInput"] > div > div {
-  background-color: #1c2640 !important;
-  color: #e8edf8 !important;
+  background-color: #f1f3f5 !important;
+  color: #000000 !important;
   border-color: #2a3555 !important;
 }
 div[data-testid="stNumberInput"] button {
-  background-color: #2a3555 !important;
-  color: #e8edf8 !important;
-  border-color: #3a4565 !important;
+  background-color: #dee2e6 !important;
+  color: #000000 !important;
+  border-color: #2a3555 !important;
 }
 div[data-testid="stNumberInput"] button:hover {
-  background-color: #4f8ef7 !important;
-  color: #ffffff !important;
+  background-color: #ced4da !important;
+  color: #000000 !important;
 }
 /* Labels above inputs */
 div[data-testid="stNumberInput"] label,
 div[data-testid="stTextInput"] label,
 div[data-testid="stSelectbox"] label,
 div[data-testid="stSlider"] label {
-  color: #8b95b0 !important;
+  color: #000000 !important;
   font-size: 0.82rem !important;
   font-weight: 500 !important;
 }
 /* Expander header */
 div[data-testid="stExpander"] summary,
 div[data-testid="stExpander"] > div[role="button"] {
-  background-color: #151d35 !important;
-  color: #e8edf8 !important;
+  background-color: #fadde1 !important;
+  color: #000000 !important;
 }
 
 /* ── Force dark on ALL Streamlit native containers ─────────────── */
@@ -804,8 +882,8 @@ div[data-testid="block-container"] > *,
 div[data-testid="stVerticalBlock"],
 div[data-testid="stHorizontalBlock"],
 .main, .main > * {
-  background-color: #0a0e1a !important;
-  color: #e8edf8 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
 }
 
 /* ── Inputs, selects, sliders ───────────────────────────────────── */
@@ -815,24 +893,27 @@ div[data-baseweb="base-input"] > input,
 div[data-baseweb="select"] > div,
 div[data-testid="stDateInput"] input,
 div[data-testid="stTextInput"] input,
-div[data-testid="stNumberInput"] input,
-div[data-baseweb="popover"],
-div[role="listbox"],
-div[role="option"] {
-  background-color: #151d35 !important;
-  color: #e8edf8 !important;
+div[data-testid="stNumberInput"] input {
+  background-color: #ffffff !important;
+  color: #000000 !important;
   border-color: #2a3555 !important;
 }
 
-/* ── Slider track ───────────────────────────────────────────────── */
-div[data-testid="stSlider"] > div > div > div {
-  background-color: #2a3555 !important;
+div[data-baseweb="popover"],
+div[role="listbox"],
+div[role="option"] {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #dee2e6 !important;
 }
+
+/* ── Slider track ───────────────────────────────────────────────── */
+/* Native Streamlit slider coloring handled by config.toml */
 
 /* ── Expanders ──────────────────────────────────────────────────── */
 div[data-testid="stExpander"],
 div[data-testid="stExpander"] > div {
-  background-color: #151d35 !important;
+  background-color: #ffffff !important;
   border-color: #2a3555 !important;
 }
 
@@ -840,39 +921,39 @@ div[data-testid="stExpander"] > div {
 div[data-testid="stDataFrame"],
 div[data-testid="stDataFrame"] > div,
 iframe {
-  background-color: #151d35 !important;
-  color: #e8edf8 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
 }
 
 /* ── Metric cards ───────────────────────────────────────────────── */
 div[data-testid="stMetric"],
 div[data-testid="stMetricValue"],
 div[data-testid="stMetricLabel"] {
-  background-color: #151d35 !important;
-  color: #e8edf8 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
 }
 
 /* ── Tabs ───────────────────────────────────────────────────────── */
 div[data-baseweb="tab-panel"],
 div[role="tabpanel"] {
-  background-color: #0a0e1a !important;
+  background-color: #ffffff !important;
 }
 
 /* ── Alert / info boxes ─────────────────────────────────────────── */
 div[data-testid="stAlert"] {
-  background-color: #151d35 !important;
+  background-color: #ffffff !important;
   border-color: #2a3555 !important;
 }
 
 /* ── Labels and markdown text ───────────────────────────────────── */
 p, span, label, div, h1, h2, h3, h4, h5, h6, li {
-  color: #e8edf8;
+  color: #000000;
 }
 
 /* ── Protect custom colored elements ────────────────────────────── */
 .bn-header, .bn-card, .kpi-card, .cost-banner,
 .history-card, .client-card, .estimate-card {
-  color: #e8edf8 !important;
+  color: #000000 !important;
 }
 </style>
 """
@@ -889,15 +970,17 @@ def page_header(customer_name: str = "", client_mode: str = ""):
     elif client_mode == "onprem":
         mode_badge = '<span class="bn-badge" style="background:var(--success); opacity:0.15; border-color:var(--success); color:var(--success);">🏢 On-Premise</span>'
 
-    name_line = f" &nbsp;·&nbsp; <span style='color:var(--accent);'>{html.escape(customer_name)}</span>" if customer_name else ""
-
-    st.markdown(f"""
-    <div class="bn-header">
-      <h1>BusinessNext Cost Estimator{name_line}</h1>
-      <p>Infrastructure sizing &amp; cloud cost forecasting platform</p>
-      {mode_badge}
-    </div>
-    """, unsafe_allow_html=True)
+    # Optional Customer Name + Mode Badge
+    if customer_name:
+        st.markdown(f"""
+        <div style="margin-top:-1.5rem; margin-bottom:1.5rem;">
+            <span style="color:var(--text2); font-size:0.9rem;">Client:</span>
+            <span style="color:var(--text); font-weight:700; font-size:1.1rem; margin-left:4px;">{html.escape(customer_name)}</span>
+            &nbsp;·&nbsp; {mode_badge}
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div style='margin-top:-1.5rem; margin-bottom:1.5rem;'>{mode_badge}</div>", unsafe_allow_html=True)
 
 
 def section_title(icon: str, title: str, subtitle: str = ""):
@@ -944,3 +1027,7 @@ def cost_banner(monthly: float, annual: float, five_yr: float):
 
 def divider():
     st.markdown('<div class="bn-divider" style="background:var(--border); opacity:0.5;"></div>', unsafe_allow_html=True)
+
+
+
+
