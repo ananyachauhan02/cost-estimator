@@ -41,10 +41,9 @@ header[data-testid="stHeader"] {
     margin-top: -0.8rem !important;
 }
 
-
 /* ALL sidebar nav elements — Visibility & Sizing (Default State) */
 [data-testid="stSidebarNav"] {
-  padding-top: 2rem !important;
+  padding-top: 0.5rem !important;
 }
 
 [data-testid="stSidebarNavLink"] p,
@@ -75,7 +74,7 @@ header[data-testid="stHeader"] {
   border-left: 3px solid transparent !important;
 }
 
-/* Hover state — prevent text background artifacts */
+/* Hover state */
 [data-testid="stSidebarNavLink"]:hover,
 [data-testid="stSidebarNavLink"]:hover *,
 [data-testid="stSidebarNavLink"]:hover p,
@@ -84,7 +83,7 @@ header[data-testid="stHeader"] {
   color: #ffffff !important;
 }
 
-/* Active/selected — dark grey with pink accent, NO blue */
+/* Active/selected */
 [data-testid="stSidebarNavLink"][aria-current],
 [data-testid="stSidebarNavLink"][aria-current="page"],
 [data-testid="stSidebarNavLink"][aria-selected="true"] {
@@ -165,9 +164,6 @@ li[role="option"] {
   color: #000000 !important;
   border-color: #dee2e6 !important;
 }
-
-/* Slider */
-/* Removed overriding slider css so config.toml manages it */
 
 /* Expanders */
 [data-testid="stExpander"],
@@ -255,7 +251,7 @@ THEME_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-/* ── Root variables (Dark Mode Default) ─────────────────────── */
+/* ── Root variables ─────────────────────── */
 :root {
   --bg:         #ffffff;
   --bg2:        #000000;
@@ -267,13 +263,10 @@ THEME_CSS = """
   --accent3:    #00d4aa;
   --gold:       #f0a500;
   --danger:     #ff4d6d;
-  
-  /* Semantic */
   --success:    #00d4aa;
   --warning:    #f0a500;
   --error:      #ff4d6d;
   --info:       #4f8ef7;
-
   --text:       #000000;
   --text2:      #333333;
   --text3:      #555555;
@@ -283,8 +276,6 @@ THEME_CSS = """
   --glow:       0 0 40px rgba(79,142,247,0.15);
   --header-grad: linear-gradient(135deg, #0f1629 0%, #1a2540 40%, #0f2044 100%);
 }
-
-/* Light mode removed — dark only */
 
 /* ── Base reset ──────────────────────────────────────────────── */
 html, body,
@@ -326,8 +317,6 @@ div[class*="main"] {
   background: linear-gradient(90deg, #ff69b4, #fadde1);
 }
 
-/* Shading removed as per request */
-
 .bn-header h1 {
   font-family: 'Plus Jakarta Sans', sans-serif !important;
   font-size: 2rem !important;
@@ -360,26 +349,6 @@ div[class*="main"] {
   margin-top: 1rem;
   letter-spacing: 0.03em;
   box-shadow: 0 2px 8px rgba(255,105,180,0.08);
-}  color: #333333 !important;
-  margin: 0 !important;
-  font-size: 0.9rem;
-  font-weight: 300;
-}
-
-.bn-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(79,142,247,0.15);
-  border: 1px solid rgba(79,142,247,0.3);
-  color: var(--accent);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 4px 12px;
-  border-radius: 20px;
-  margin-top: 0.75rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
 /* ── Section cards ───────────────────────────────────────────── */
@@ -598,7 +567,7 @@ div[class*="main"] {
   border-radius: var(--radius) !important;
 }
 
-/* ── Streamlit overrides ──────────────────────────────────────── */
+/* ── Streamlit button overrides ──────────────────────────────────────── */
 .stButton > button,
 .stButton > button[kind="primary"],
 .stButton > button[kind="secondary"] {
@@ -620,7 +589,7 @@ div[class*="main"] {
   background: #73a5f8 !important;
 }
 
-/* Specific target for the Green Generate buttons */
+/* Green Generate buttons */
 div[data-testid="stMarkdownContainer"]:has(.green-btn-target) {
   display: none !important;
   margin: 0 !important;
@@ -701,12 +670,13 @@ label, .stCheckbox label, .stSelectbox label {
 }
 
 .stSuccess { background: rgba(0,212,170,0.08) !important; border-color: var(--success) !important; color: var(--success) !important; }
-.stInfo    { background: rgba(79,142,247,0.08) !important; border-color: var(--info) !important; color: var(--info) !important; }
+.stInfo    { background: rgba(79,142,247,0.08) !important; border-color: var(--info) !important;    color: var(--info) !important; }
 .stWarning { background: rgba(240,165,0,0.08) !important;  border-color: var(--warning) !important; color: var(--warning) !important; }
-.stError   { background: rgba(255,77,109,0.08) !important; border-color: var(--error) !important; color: var(--error) !important; }
+.stError   { background: rgba(255,77,109,0.08) !important; border-color: var(--error) !important;   color: var(--error) !important; }
 
-/* ── Fixed Sidebar Styling ────────────────────────────────────────── */
-  /* FORCE 200px Sidebar regardless of Streamlit state */
+/* ══════════════════════════════════════════════════════════════════
+   SIDEBAR — fixed 200px dark panel
+══════════════════════════════════════════════════════════════════ */
   [data-testid="stSidebar"],
   [data-testid="stSidebar"][aria-expanded="true"],
   [data-testid="stSidebar"][aria-expanded="false"] {
@@ -719,21 +689,69 @@ label, .stCheckbox label, .stSelectbox label {
     border-right: 1px solid rgba(255,255,255,0.1) !important;
     box-shadow: 2px 0 16px rgba(0,0,0,0.3) !important;
   }
-  
+
   [data-testid="stSidebarContent"] {
     width: 200px !important;
     min-width: 200px !important;
     background: #111111 !important;
     transition: none !important;
+    /* ── KEY: flex column lets us reorder logo above nav ── */
+    display: flex !important;
+    flex-direction: column !important;
   }
-  
-  /* Hide all built-in toggle arrows */
+
+  /* ── Logo block: pulled to top via order: -1 ── */
+  [data-testid="stSidebarUserContent"] {
+    order: -1 !important;
+    background: #111111 !important;
+    padding: 1.25rem 1rem 1rem 1rem !important;
+    border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+    margin-bottom: 0.25rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Strip all Streamlit wrapper padding from inside the logo block */
+  [data-testid="stSidebarUserContent"] > div,
+  [data-testid="stSidebarUserContent"] section,
+  [data-testid="stSidebarUserContent"] .block-container,
+  [data-testid="stSidebarUserContent"] [data-testid="stVerticalBlock"] {
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Center and size the image */
+  [data-testid="stSidebarUserContent"] [data-testid="stImage"] {
+    display: flex !important;
+    justify-content: center !important;
+    width: 100% !important;
+  }
+  [data-testid="stSidebarUserContent"] [data-testid="stImage"] img {
+    max-width: 148px !important;
+    width: 85% !important;
+    margin: 0 auto !important;
+    display: block !important;
+    background: transparent !important;
+  }
+
+  /* ── Nav sits below logo ── */
+  [data-testid="stSidebarNav"] {
+    order: 0 !important;
+    padding-top: 0.5rem !important;
+    margin-top: 0 !important;
+  }
+
+  /* Hide collapse toggle arrows */
   [data-testid="stSidebarCollapseButton"],
   button[data-testid="collapsedControl"] {
     display: none !important;
   }
 
-  /* Navigation Items Visibility & Sizing */
+  /* Nav link base */
   [data-testid="stSidebarNavLink"] {
     border-radius: 10px !important;
     margin: 4px 8px !important;
@@ -753,16 +771,20 @@ label, .stCheckbox label, .stSelectbox label {
     border-left: 3px solid #ff0055 !important;
   }
 
-  /* Icons permanently visible and bold */
+  /* Icons */
   [data-testid="stSidebarNavLink"] svg,
   [data-testid="stSidebarNavLink"] img,
   [data-testid="stSidebarNavLink"] span:first-child {
-    min-width: 22px !important; width: 22px !important; height: 22px !important;
-    flex-shrink: 0 !important; opacity: 1 !important;
-    fill: #ffffff !important; color: #ffffff !important;
+    min-width: 22px !important;
+    width: 22px !important;
+    height: 22px !important;
+    flex-shrink: 0 !important;
+    opacity: 1 !important;
+    fill: #ffffff !important;
+    color: #ffffff !important;
   }
 
-  /* Labels permanently visible */
+  /* Labels */
   [data-testid="stSidebarNavLink"] p {
     opacity: 1 !important;
     font-size: 0.9rem !important;
@@ -779,15 +801,6 @@ label, .stCheckbox label, .stSelectbox label {
     color: rgba(255,255,255,0.5) !important;
     padding: 18px 16px 8px !important;
     opacity: 1 !important;
-  }
-
-  /* Sidebar Logo centering */
-  [data-testid="stSidebar"] [data-testid="stImage"],
-  [data-testid="stSidebar"] .logo-container { display: flex !important; justify-content: center !important; width: 100% !important; 
-    display: flex !important;
-    justify-content: center !important;
-    padding-top: 2rem !important;
-    margin-bottom: 1rem !important;
   }
 
   [data-testid="stSidebar"] .stMarkdown h1,
@@ -836,7 +849,7 @@ label, .stCheckbox label, .stSelectbox label {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
 
-/* ── Number inputs specifically ────────────────────────────────── */
+/* ── Number inputs ────────────────────────────────────────────── */
 div[data-testid="stNumberInput"] > div,
 div[data-testid="stNumberInput"] input,
 div[data-testid="stNumberInput"] button,
@@ -854,6 +867,7 @@ div[data-testid="stNumberInput"] button:hover {
   background-color: #ced4da !important;
   color: #000000 !important;
 }
+
 /* Labels above inputs */
 div[data-testid="stNumberInput"] label,
 div[data-testid="stTextInput"] label,
@@ -863,6 +877,7 @@ div[data-testid="stSlider"] label {
   font-size: 0.82rem !important;
   font-weight: 500 !important;
 }
+
 /* Expander header */
 div[data-testid="stExpander"] summary,
 div[data-testid="stExpander"] > div[role="button"] {
@@ -870,7 +885,7 @@ div[data-testid="stExpander"] > div[role="button"] {
   color: #000000 !important;
 }
 
-/* ── Force dark on ALL Streamlit native containers ─────────────── */
+/* ── Force white background on all Streamlit containers ───────── */
 .stApp,
 .stApp > *,
 section[data-testid="stMain"],
@@ -886,7 +901,7 @@ div[data-testid="stHorizontalBlock"],
   color: #000000 !important;
 }
 
-/* ── Inputs, selects, sliders ───────────────────────────────────── */
+/* ── Inputs, selects ────────────────────────────────────────────── */
 input, textarea, select,
 div[data-baseweb="input"] > div,
 div[data-baseweb="base-input"] > input,
@@ -907,9 +922,6 @@ div[role="option"] {
   border-color: #dee2e6 !important;
 }
 
-/* ── Slider track ───────────────────────────────────────────────── */
-/* Native Streamlit slider coloring handled by config.toml */
-
 /* ── Expanders ──────────────────────────────────────────────────── */
 div[data-testid="stExpander"],
 div[data-testid="stExpander"] > div {
@@ -917,7 +929,7 @@ div[data-testid="stExpander"] > div {
   border-color: #2a3555 !important;
 }
 
-/* ── Dataframes / tables ────────────────────────────────────────── */
+/* ── Dataframes ─────────────────────────────────────────────────── */
 div[data-testid="stDataFrame"],
 div[data-testid="stDataFrame"] > div,
 iframe {
@@ -939,13 +951,13 @@ div[role="tabpanel"] {
   background-color: #ffffff !important;
 }
 
-/* ── Alert / info boxes ─────────────────────────────────────────── */
+/* ── Alert boxes ────────────────────────────────────────────────── */
 div[data-testid="stAlert"] {
   background-color: #ffffff !important;
   border-color: #2a3555 !important;
 }
 
-/* ── Labels and markdown text ───────────────────────────────────── */
+/* ── Text ───────────────────────────────────────────────────────── */
 p, span, label, div, h1, h2, h3, h4, h5, h6, li {
   color: #000000;
 }
@@ -957,6 +969,7 @@ p, span, label, div, h1, h2, h3, h4, h5, h6, li {
 }
 </style>
 """
+
 
 def inject_theme():
     st.markdown(FORCE_DARK, unsafe_allow_html=True)
@@ -970,7 +983,6 @@ def page_header(customer_name: str = "", client_mode: str = ""):
     elif client_mode == "onprem":
         mode_badge = '<span class="bn-badge" style="background:var(--success); opacity:0.15; border-color:var(--success); color:var(--success);">🏢 On-Premise</span>'
 
-    # Optional Customer Name + Mode Badge
     if customer_name:
         st.markdown(f"""
         <div style="margin-top:-1.5rem; margin-bottom:1.5rem;">
@@ -1027,7 +1039,3 @@ def cost_banner(monthly: float, annual: float, five_yr: float):
 
 def divider():
     st.markdown('<div class="bn-divider" style="background:var(--border); opacity:0.5;"></div>', unsafe_allow_html=True)
-
-
-
-

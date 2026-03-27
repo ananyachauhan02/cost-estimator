@@ -1,6 +1,8 @@
 """
 app.py — BusinessNext Cost Estimator · Login Page
 """
+import base64
+import pathlib
 import streamlit as st
 from database import init_db, verify_user
 
@@ -23,17 +25,6 @@ st.markdown("""
     background-color: var(--bg) !important;
   }
 
-  /* ── Login page: lock to viewport, no scrollbar ── */
-  .login-outer {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background-color: var(--bg);
-    pointer-events: none; /* let Streamlit inputs receive events */
-  }
   .login-logo {
     font-family: 'Plus Jakarta Sans', sans-serif;
     font-size: 2.2rem;
@@ -109,13 +100,9 @@ st.markdown("""
 
 
 def login_ui():
-    # Narrow centred column for all content
     _, col, _ = st.columns([1.8, 2, 1.8])
     with col:
-        # Push everything down slightly
         st.markdown("<div style='height: 2vh'></div>", unsafe_allow_html=True)
-
-        # Branding logo
         st.image("assets/logo.png", width=140)
         st.markdown('<div class="login-title">Cloud Cost Estimator Portal</div>', unsafe_allow_html=True)
 
@@ -150,12 +137,49 @@ else:
         "Dashboard": [clients_pg],
         "Details":   [estimates_pg, estimator_pg],
     }
-    
     if st.session_state.user.get("role") == "admin":
         nav_dict["Administration"] = [admin_pg]
-        
     pg = st.navigation(nav_dict, position="sidebar")
 
+
+# ── Sidebar logo — embedded as base64 in CSS, no Streamlit component ──────
+# Using a CSS ::before pseudo-element means the logo is part of the
+# stylesheet, not a Streamlit widget. The browser caches it and renders
+# it instantly on every page — no re-render, no flash, no disappearing.
+if st.session_state.get("logged_in"):
+    try:
+        logo_bytes = pathlib.Path("assets/image.png").read_bytes()
+        logo_b64   = base64.b64encode(logo_bytes).decode()
+        st.markdown(
+            f"""
+            <style>
+            /* Pin logo to very top of sidebar via ::before pseudo-element.
+               This lives in the stylesheet — survives page transitions intact. */
+            [data-testid="stSidebarContent"]::before {{
+                content: '' !important;
+                display: block !important;
+                width: 100% !important;
+                height: 82px !important;
+                background: #111111 url("data:image/png;base64,{logo_b64}") no-repeat center center !important;
+                background-size: 148px auto !important;
+                border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+                flex-shrink: 0 !important;
+            }}
+            /* Hide the old st.sidebar widget block — no longer needed */
+            [data-testid="stSidebarUserContent"] {{
+                display: none !important;
+            }}
+            /* Nav links sit immediately below the logo */
+            [data-testid="stSidebarNav"] {{
+                margin-top: 0 !important;
+                padding-top: 0.5rem !important;
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+    except FileNotFoundError:
+        pass  # logo file missing — sidebar renders without it, no crash
 
 
 pg.run()
