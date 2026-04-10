@@ -11,13 +11,14 @@ from theme import inject_theme, section_title
 require("manage_users", "Only Administrators can access the Admin Panel.")
 
 # ── Theme Setup ───────────────────────────────────────────────────────────
+inject_theme()
 st.markdown("""
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap');
   
   .page-header {
     padding: 1.25rem 0 1.75rem;
-    border-bottom: 2px solid #fadde1;
+    border-bottom: 2px solid var(--border);
     margin-bottom: 2rem;
     position: relative;
   }
@@ -26,43 +27,41 @@ st.markdown("""
     position: absolute;
     bottom: -2px; left: 0;
     width: 60px; height: 2px;
-    background: linear-gradient(90deg, #ff69b4, #fadde1);
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
   }
-  .page-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.75rem; font-weight: 800; color: #111111; letter-spacing: -0.025em; }
-  .page-subtitle { color: #555555; font-size: 0.85rem; margin-top: 0.25rem; }
+  .page-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.75rem; font-weight: 800; color: var(--text); letter-spacing: -0.025em; }
+  .page-subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
 
   /* ── Admin table rows ── */
   [data-testid="stHorizontalBlock"] {
-    border-bottom: 1px solid #fadde1;
+    border-bottom: 1px solid var(--border);
     padding: 0.4rem 0;
   }
   /* Remove border from the header column block to avoid double lines at top */
   [data-testid="stHorizontalBlock"]:has(div[style*="font-weight:bold"]),
   [data-testid="stHorizontalBlock"]:has(b),
   [data-testid="stHorizontalBlock"]:has(strong) {
-     border-bottom: 2px solid #fadde1 !important;
+     border-bottom: 2px solid var(--border) !important;
   }
 
   /* ── Form panel ── */
   [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
-    background: #ffffff;
-    border: 1.5px solid #fadde1;
-    border-top: 3px solid #ff69b4;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-top: 3px solid var(--accent);
     border-radius: 14px;
     padding: 1.5rem !important;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
   }
 
   /* ── Page content tweaks ── */
 </style>
 """, unsafe_allow_html=True)
 
-inject_theme()
+# Theme globally injected in app.py
 
 # ── Top Navigation ────────────────────────────────────────────────────────
-logo_col, back_col, logout_col = st.columns([8, 2, 2])
-with logo_col:
-    st.image("assets/logo.png", width=180)
+_, back_col, logout_col = st.columns([8, 2, 2])
 with back_col:
     if st.button("← Clients", key="admin_back_to_clients", use_container_width=True):
         st.switch_page("pages/1_Clients.py")

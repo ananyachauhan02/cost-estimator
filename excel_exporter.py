@@ -140,7 +140,7 @@ def _build_cloud_sizing_sheet(wb: Workbook, distribution: dict, metrics: dict, c
             r.get("ram_per_node", "—")  or "—",
             r.get("storage_per_node_gb", 0) or "—",
             r.get("pricing_model") or "On Demand",
-            "Self-Hosted" if "pgsql" in r.get("role_key", "") else "AWS Managed",
+            "Self-Hosted" if any(db in r.get("role_key", "").lower() for db in ["pgsql", "oracle", "mssql"]) else "AWS Managed",
             r.get("reasoning", "—"),
         ]
         _data_row(ws, row, vals, alt=(i % 2 == 0))
@@ -160,7 +160,7 @@ def _build_cloud_sizing_sheet(wb: Workbook, distribution: dict, metrics: dict, c
         ("Total Worker Nodes",        metrics.get("total_workernodes", 0)),
         ("Total vCPUs (Worker)",       metrics.get("total_vcpus_workernode", 0)),
         ("Total RAM GB (Worker)",      metrics.get("total_memory_workernode_gb", 0)),
-        ("PostgreSQL RAM GB",          metrics.get("postgres_ram_gb", 0)),
+        (f"{metrics.get('db_type', 'PostgreSQL')} RAM GB", metrics.get("postgres_ram_gb", 0)),
         ("Data Size GB",               metrics.get("data_size_gb", 0)),
         ("S3 Size GB",                metrics.get("s3_size_gb", 0)),
     ]
@@ -174,7 +174,7 @@ def _build_cloud_sizing_sheet(wb: Workbook, distribution: dict, metrics: dict, c
 
 # ── Sheet 2: AWS Pricing ──────────────────────────────────────────────────
 
-def _build_aws_pricing_sheet(wb: Workbook, pricing: dict, customer: str):
+def _build_aws_pricing_sheet(wb: Workbook, pricing: dict, metrics: dict, customer: str):
     ws = wb.create_sheet("AWS Pricing")
     ws.sheet_view.showGridLines = False
     ws.freeze_panes = "A5"
@@ -297,7 +297,7 @@ def _build_aws_pricing_sheet(wb: Workbook, pricing: dict, customer: str):
         ("OS",                 a.get("os", "Linux/RHEL")),
         ("EBS Type",           a.get("ebs_type", "gp3/io2")),
         ("Pricing Date",       a.get("pricing_date", "2026-03")),
-        ("DB Hosting",         a.get("db_hosting_note", "PostgreSQL=Self-Hosted, SQL/Oracle=Managed RDS")),
+        ("DB Hosting",         f"{metrics.get('db_type', 'PostgreSQL')} Hosting"),
     ]
     for i, (k, v) in enumerate(assumptions):
         for col, val in enumerate([k, v], 1):
@@ -913,9 +913,11 @@ def generate_excel_reports(
     client_mode:  str  = "saas",
     gcp_pricing:  dict = None,
     comparison:   dict = None,
+    years:        int  = 5,
 ) -> dict:
     """
     Generate cloud_sizing.xlsx and aws_pricing_forecast.xlsx (+GCP/Comparison sheets).
+    For On-Prem clients also generates an OpenShift or Kubeadm style sizing workbook.
     Returns dict with file paths.
     """
     Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -942,7 +944,7 @@ def generate_excel_reports(
     if client_mode == "saas" and pricing is not None:
         wb2 = Workbook()
         wb2.remove(wb2.active)
-        _build_aws_pricing_sheet(wb2, pricing, customer)
+        _build_aws_pricing_sheet(wb2, pricing, metrics, customer)
         if env_pricing:
             preprod = env_pricing.get("preprod_sit_uat")
             dr      = env_pricing.get("dr")
@@ -959,10 +961,38 @@ def generate_excel_reports(
         wb2.save(pricing_path)
         print(f"[excel_exporter] Saved {pricing_path}")
 
+    # ── Workbook 3 & 4: On-Prem Sizing Sheets (On-Prem only) ──────────────
+    onprem_openshift_path = None
+    onprem_oracle_path = None
+    if client_mode == "onprem":
+        onprem_openshift_path = generate_onprem_excel(
+            metrics=metrics,
+            distribution=distribution,
+            customer=customer,
+            output_dir=output_dir,
+            env_pricing=env_pricing,
+            db_type="SQL Server",
+            years=years,
+            filename="onprem_openshift_sizing.xlsx"
+        )
+        onprem_oracle_path = generate_onprem_excel(
+            metrics=metrics,
+            distribution=distribution,
+            customer=customer,
+            output_dir=output_dir,
+            env_pricing=env_pricing,
+            db_type="Oracle",
+            years=years,
+            filename="onprem_kubeadm_oracle_sizing.xlsx"
+        )
+
     return {
-        "cloud_sizing": sizing_path,
-        "aws_pricing":  pricing_path,  # None for on-prem
-        "gcp_pricing":  pricing_path,  # same workbook contains GCP sheet
+        "cloud_sizing":    sizing_path,
+        "aws_pricing":     pricing_path,   # None for on-prem
+        "gcp_pricing":     pricing_path,   # same workbook contains GCP sheet
+        "comparison":      pricing_path,   # Note: same as gcp/aws paths
+        "onprem_sizing":   onprem_openshift_path,
+        "onprem_oracle_sizing": onprem_oracle_path,
     }
 
 
@@ -1225,4 +1255,477 @@ def _build_comparison_sheet(wb: Workbook, comparison: dict, customer: str):
         if aws_col: ws.cell(row=r, column=aws_col).fill = GREEN_FILL
         if gcp_col: ws.cell(row=r, column=gcp_col).fill = GREEN_FILL
         ws.row_dimensions[r].height = 15
-        r += 1
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# On-Premise OpenShift / Kubeadm Sizing Workbook
+# ══════════════════════════════════════════════════════════════════════════════
+
+MASTER_NODES = 3          # Always constant per user requirement
+BOOTSTRAP_CPU, BOOTSTRAP_RAM, BOOTSTRAP_STORAGE = 2, 16, 256
+MASTER_CPU,    MASTER_RAM,    MASTER_STORAGE    = 4, 16, 256
+WORKER_CPU,    WORKER_RAM,    WORKER_STORAGE    = 8, 32, 256
+INFRA_CPU,     INFRA_RAM,     INFRA_STORAGE     = 4, 32, 256
+BASTION2_CPU,  BASTION2_RAM,  BASTION2_STORAGE  = 2, 8,  256
+DB_WIN_STORAGE = 300      # per Windows node
+IMAGE_REGISTRY_GB = 1024
+
+
+def _onprem_metrics_by_year(metrics: dict, years: int) -> list:
+    """
+    Project per-year metrics for the On-Prem sizing sheets.
+    Worker nodes grow ~5%/yr, data 10%/yr (matching template ratios 7→8 over 4 yrs).
+    Returns list of dicts, one per year (index 0 = year 1).
+    """
+    base_workers  = int(metrics.get("total_workernodes", 7))
+    base_data_gb  = int(metrics.get("data_size_gb",  14000))
+    base_s3_gb    = int(metrics.get("s3_size_gb",     7100))
+    base_vcpus    = int(metrics.get("total_vcpus_workernode", 56))
+
+    # Infer DB node sizing from total_vcpus (template uses memory-intensive nodes)
+    # Template Y1: 2 Windows nodes × 18 cores = 36 vCPU ≈ 64% of worker vCPUs
+    base_db_vcpu   = max(18, int(base_vcpus * 0.64))
+    base_db_ram    = base_db_vcpu * 16   # 16 GB per vCPU
+    base_db_nodes  = 2                   # always 2 primary DB nodes in PROD
+
+    result = []
+    for y in range(1, years + 1):
+        # Worker nodes: ceil of 5% growth
+        worker_y = max(base_workers, int(base_workers * (1.05 ** (y - 1))))
+        # Infra nodes: 3 for PROD (stable)
+        infra_y  = 3
+        # Data size: grows 10% per year
+        data_y   = int(base_data_gb * (1.10 ** (y - 1)))
+        s3_y     = int(base_s3_gb   * (1.10 ** (y - 1)))
+        # DB vCPUs scale with data size
+        scaler    = data_y / max(base_data_gb, 1)
+        db_vcpu_y = max(base_db_vcpu, int(base_db_vcpu * scaler))
+        db_ram_y  = db_vcpu_y * 16
+        # NFS storage = data + S3 + per-node overhead + image registry
+        nfs_y = data_y + s3_y + worker_y * 256 + infra_y * 256 + IMAGE_REGISTRY_GB
+        # SAN mirrors data size
+        san_y = data_y
+        result.append({
+            "year":         y,
+            "worker_nodes": worker_y,
+            "infra_nodes":  infra_y,
+            "data_gb":      data_y,
+            "s3_gb":        s3_y,
+            "db_nodes":     base_db_nodes,
+            "db_vcpu":      db_vcpu_y,
+            "db_ram":       db_ram_y,
+            "nfs_gb":       nfs_y,
+            "san_gb":       san_y,
+            "app_servers":  worker_y,
+        })
+    return result
+
+
+def _build_onprem_data_sheet(wb: Workbook, metrics_by_year: list, customer: str):
+    """Builds the 'Data' summary sheet matching the template's Data tab."""
+    ws = wb.create_sheet("Data")
+    ws.sheet_view.showGridLines = False
+
+    NUM_YEARS   = len(metrics_by_year)
+    yr_suffixes = ["1st", "2nd", "3rd"] + [f"{y}th" for y in range(4, NUM_YEARS + 1)]
+    year_labels = yr_suffixes[:NUM_YEARS]
+
+    HDR_FILL = _fill("1F4E79")
+    SEC_FILL = _fill("2E75B6")
+    ALT_FILL = _fill("EBF3FB")
+    WHT_FILL = _fill("FFFFFF")
+
+    last_col    = 2 + NUM_YEARS
+    last_letter = get_column_letter(last_col)
+
+    # Title
+    ws.merge_cells(f"A1:{last_letter}1")
+    t = ws["A1"]
+    t.value     = f"On-Premise Infrastructure Metrics — {customer} — {datetime.today().strftime('%d %b %Y')}"
+    t.font      = _font(bold=True, size=13, color="FFFFFF")
+    t.fill      = HDR_FILL
+    t.alignment = _center()
+    ws.row_dimensions[1].height = 28
+
+    # Header row: blank | "Year >" | 1st | 2nd | …
+    ws.cell(row=2, column=1, value="Metric").font = _font(bold=True, color="FFFFFF", size=10)
+    ws.cell(row=2, column=1).fill = HDR_FILL
+    ws.cell(row=2, column=1).alignment = _left()
+    ws.cell(row=2, column=1).border = _border()
+    ws.cell(row=2, column=2, value="Year >").font = _font(bold=True, color="FFFFFF", size=10)
+    ws.cell(row=2, column=2).fill = HDR_FILL
+    ws.cell(row=2, column=2).alignment = _center()
+    ws.cell(row=2, column=2).border = _border()
+    for i, label in enumerate(year_labels):
+        c = ws.cell(row=2, column=3+i, value=label)
+        c.font      = _font(bold=True, color="FFFFFF", size=10)
+        c.fill      = SEC_FILL
+        c.alignment = _center()
+        c.border    = _border()
+    ws.row_dimensions[2].height = 22
+
+    def _sec(row, title):
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=last_col)
+        c = ws.cell(row=row, column=1, value=f"  {title}")
+        c.font      = _font(bold=True, color="FFFFFF", size=10)
+        c.fill      = SEC_FILL
+        c.alignment = _left()
+        c.border    = _border()
+        ws.row_dimensions[row].height = 18
+
+    def _dat(row, label, values, alt=False):
+        fill = ALT_FILL if alt else WHT_FILL
+        c = ws.cell(row=row, column=1, value=label)
+        c.font = _font(size=10); c.fill = fill; c.alignment = _left(); c.border = _border()
+        ws.cell(row=row, column=2).fill   = fill
+        ws.cell(row=row, column=2).border = _border()
+        for i, v in enumerate(values):
+            cell = ws.cell(row=row, column=3+i, value=v)
+            cell.font = _font(size=10); cell.fill = fill
+            cell.alignment = _center(); cell.border = _border()
+            if isinstance(v, (int, float)):
+                cell.number_format = "#,##0"
+        ws.row_dimensions[row].height = 16
+
+    r = 3
+    _sec(r, "CRMNEXT App Servers"); r += 1
+    _dat(r, "Total App Servers (8 Phy. Cores/16vCPU, 32GB RAM Each)",
+         [m["app_servers"] for m in metrics_by_year]); r += 1
+
+    _sec(r, "CRMNEXT Database Server"); r += 1
+    _dat(r, "Total Cores Required",
+         [m["db_vcpu"] // 2 for m in metrics_by_year], alt=True); r += 1
+    _dat(r, "Total vCPUs Required",
+         [m["db_vcpu"] for m in metrics_by_year]); r += 1
+
+    _sec(r, "Volumes"); r += 1
+    _dat(r, "Data size (GB)",
+         [m["data_gb"] for m in metrics_by_year], alt=True); r += 1
+    _dat(r, "S3 size (GB)",
+         [m["s3_gb"] for m in metrics_by_year]); r += 1
+
+    _set_col_widths(ws, [52, 12] + [14] * NUM_YEARS)
+
+
+def _build_onprem_env_sheet(
+    wb: Workbook,
+    sheet_name: str,
+    env_label: str,
+    env_data: dict,
+    customer: str,
+    is_prod: bool = False,
+    include_reporting_db: bool = False,
+    archival_san_gb: float = 0,
+    db_type: str = "SQL Server",
+):
+    """
+    Builds one environment sheet (PROD-XYr, DR, PRE-PROD, UAT, SIT)
+    matching the standard on-prem sizing layout exactly.
+    """
+    ws = wb.create_sheet(sheet_name)
+    ws.sheet_view.showGridLines = False
+
+    worker_nodes = int(env_data["worker_nodes"])
+    infra_nodes  = int(env_data["infra_nodes"])
+    db_nodes     = int(env_data["db_nodes"])
+    db_vcpu      = int(env_data["db_vcpu"])
+    db_ram       = int(env_data["db_ram"])
+    data_gb      = int(env_data["data_gb"])
+    s3_gb        = int(env_data["s3_gb"])
+    nfs_gb       = int(env_data["nfs_gb"])
+    san_gb       = int(env_data["san_gb"])
+
+    cluster_name = "Kubeadm" if db_type == "Oracle" else "OpenShift"
+
+    HDR_FILL  = _fill("1F4E79")
+    SEC_FILL  = _fill("2E75B6")
+    ALT_FILL  = _fill("EBF3FB")
+    WHT_FILL  = _fill("FFFFFF")
+
+    # ── Title row ────────────────────────────────────────────────────────────
+    ws.merge_cells("B1:N1")
+    t = ws["B1"]
+    t.value     = f"{env_label} Environment On Premise"
+    t.font      = _font(bold=True, size=12, color="FFFFFF")
+    t.fill      = HDR_FILL
+    t.alignment = _center()
+    ws.row_dimensions[1].height = 26
+
+    # ── Column header row ────────────────────────────────────────────────────
+    col_headers = [
+        "S.N.", "Services/Instances", "Nodes", "Instance Type", "Remarks",
+        "Per Node\nCPU cores", "Per Node\nRAM", "Per Node\nStorage (GB)",
+        "Total\nCPU cores", "Total\nRAM\n(GB)", "Total\nStorage\n(TB)",
+        None, "Remarks", None,
+    ]
+    for i, h in enumerate(col_headers):
+        c = ws.cell(row=2, column=2+i, value=h)
+        c.font      = _font(bold=True, size=9, color="FFFFFF")
+        c.fill      = HDR_FILL
+        c.alignment = _center()
+        c.border    = _border()
+    ws.row_dimensions[2].height = 36
+
+    def _sec(row, sn, title):
+        ws.cell(row=row, column=2, value=sn).font      = _font(bold=True, size=10, color="FFFFFF")
+        ws.cell(row=row, column=2).fill      = SEC_FILL
+        ws.cell(row=row, column=2).border    = _border()
+        ws.cell(row=row, column=2).alignment = _center()
+        ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=15)
+        c = ws.cell(row=row, column=3, value=title)
+        c.font = _font(bold=True, size=10, color="FFFFFF")
+        c.fill = SEC_FILL; c.alignment = _left(); c.border = _border()
+        for col in [13, 14, 15]:
+            ws.cell(row=row, column=col).fill   = SEC_FILL
+            ws.cell(row=row, column=col).border = _border()
+        ws.row_dimensions[row].height = 20
+
+    def _dr(row, sn, service, nodes, inst_type, remarks,
+            cpu_n, ram_n, stor_n, tot_cpu, tot_ram, tot_stor_tb,
+            remarks2="", alt=False):
+        fill = ALT_FILL if alt else WHT_FILL
+        vals = [sn, service, nodes, inst_type, remarks,
+                cpu_n, ram_n, stor_n, tot_cpu, tot_ram, tot_stor_tb, None, remarks2, None]
+        for i, v in enumerate(vals):
+            col = 2 + i
+            c = ws.cell(row=row, column=col, value=v)
+            c.font      = _font(size=9)
+            c.fill      = fill
+            c.alignment = _center() if col > 3 else _left()
+            c.border    = _border()
+            if col == 12 and isinstance(v, float):
+                c.number_format = "0.00####"
+        ws.row_dimensions[row].height = 16
+
+    def _tb(n, gb):
+        return round(n * gb / 1024, 8)
+
+    r = 3
+
+    # Section 1: Cluster
+    _sec(r, 1, f"{cluster_name} Cluster"); r += 1
+    _dr(r, None, "Bootstrap machine", 1, "Memory Intensive",
+        f"{cluster_name} vendor to confirm on sizing.",
+        BOOTSTRAP_CPU, BOOTSTRAP_RAM, BOOTSTRAP_STORAGE,
+        BOOTSTRAP_CPU, BOOTSTRAP_RAM, _tb(1, BOOTSTRAP_STORAGE), alt=True); r += 1
+    _dr(r, None, "Bastion Host", 1, "Memory Intensive", "",
+        BOOTSTRAP_CPU, BOOTSTRAP_RAM, BOOTSTRAP_STORAGE,
+        BOOTSTRAP_CPU, BOOTSTRAP_RAM, _tb(1, BOOTSTRAP_STORAGE)); r += 1
+    _dr(r, None, "Master Nodes", MASTER_NODES, "Compute Intensive", "",
+        MASTER_CPU, MASTER_RAM, MASTER_STORAGE,
+        MASTER_NODES*MASTER_CPU, MASTER_NODES*MASTER_RAM,
+        _tb(MASTER_NODES, MASTER_STORAGE), alt=True); r += 1
+    _dr(r, None, "Linux Worker Nodes (BUSINESSNEXT)", worker_nodes, "Compute Intensive", "",
+        WORKER_CPU, WORKER_RAM, WORKER_STORAGE,
+        worker_nodes*WORKER_CPU, worker_nodes*WORKER_RAM,
+        _tb(worker_nodes, WORKER_STORAGE)); r += 1
+
+    # Section 2: Operational Services
+    _sec(r, 2, "Operational Services"); r += 1
+    _dr(r, None, "Infra Nodes (Grafana & Prometheus, EFK, Redis)",
+        infra_nodes, "Compute Intensive", "",
+        INFRA_CPU, INFRA_RAM, INFRA_STORAGE,
+        infra_nodes*INFRA_CPU, infra_nodes*INFRA_RAM,
+        _tb(infra_nodes, INFRA_STORAGE), alt=True); r += 1
+    _dr(r, None, "NFS Storage", 1, "", "",
+        None, None, nfs_gb, None, None, round(nfs_gb/1024, 8)); r += 1
+
+    sn = 3
+
+    vcpu_per = db_vcpu // max(db_nodes, 1)
+    ram_per  = db_ram  // max(db_nodes, 1)
+
+    if db_type == "Oracle":
+        # Section 3: Oracle Database
+        _sec(r, sn, "Oracle Database"); r += 1
+        _dr(r, None, "OEL/RHEL", db_nodes, "Memory Intensive", "",
+            vcpu_per, ram_per, DB_WIN_STORAGE,
+            db_vcpu, db_ram, _tb(db_nodes, DB_WIN_STORAGE), alt=True); r += 1
+        _dr(r, None, "Oracle License", db_nodes, "Memory Intensive", "",
+            None, None, None, None, None, None); r += 1
+        _dr(r, None, "Storage: SAN", db_nodes, "20K IOPS", "",
+            None, None, san_gb, None, None,
+            _tb(db_nodes, san_gb), alt=True); r += 1
+        if is_prod:
+            _dr(r, None, "RAC - Active/Active", 1, "20K IOPS",
+                "As per current archival database size",
+                None, None, archival_san_gb, None, None,
+                _tb(1, archival_san_gb)); r += 1
+            _dr(r, None, "Dataguard", 1, "", "",
+                None, None, None, None, None, None, alt=True); r += 1
+        sn += 1
+
+        # Section 4: Oracle Database - Reporting (PROD only)
+        if is_prod and include_reporting_db:
+            _sec(r, sn, "Oracle Database - Reporting"); r += 1
+            _dr(r, None, "OEL/RHEL", 1, "Memory Intensive", "",
+                vcpu_per, ram_per, DB_WIN_STORAGE,
+                vcpu_per, ram_per, _tb(1, DB_WIN_STORAGE), alt=True); r += 1
+            _dr(r, None, "Oracle License", 1, "Memory Intensive", "",
+                None, None, None, None, None, None); r += 1
+            _dr(r, None, "Storage: SAN", 1, "20K IOPS", "",
+                None, None, san_gb, None, None,
+                _tb(1, san_gb), alt=True); r += 1
+            sn += 1
+    else:
+        # Section 3: MSSQL Enterprise Database
+        _sec(r, sn, "MSSQL Enterprise Database"); r += 1
+        _dr(r, None, "Windows Nodes", db_nodes, "Memory Intensive", "",
+            vcpu_per, ram_per, DB_WIN_STORAGE,
+            db_vcpu, db_ram, _tb(db_nodes, DB_WIN_STORAGE), alt=True); r += 1
+        _dr(r, None, "SQL License", db_nodes, "Memory Intensive", "",
+            None, None, None, None, None, None); r += 1
+        _dr(r, None, "Storage: SAN", db_nodes, "20K IOPS", "",
+            None, None, san_gb, None, None,
+            _tb(db_nodes, san_gb), alt=True); r += 1
+        if is_prod:
+            _dr(r, None, "Storage: SAN (Archival)", db_nodes, "20K IOPS",
+                "As per current archival database size",
+                None, None, archival_san_gb, None, None,
+                _tb(db_nodes, archival_san_gb)); r += 1
+        sn += 1
+
+        # Section 4: MSSQL Reporting DB (PROD only)
+        if is_prod and include_reporting_db:
+            _sec(r, sn, "MSSQL Enterprise Database - Reporting"); r += 1
+            _dr(r, None, "Windows Nodes", 1, "Memory Intensive", "",
+                vcpu_per, ram_per, DB_WIN_STORAGE,
+                vcpu_per, ram_per, _tb(1, DB_WIN_STORAGE), alt=True); r += 1
+            _dr(r, None, "SQL License", 1, "Memory Intensive", "",
+                None, None, None, None, None, None); r += 1
+            _dr(r, None, "Storage: SAN", 1, "20K IOPS", "",
+                None, None, san_gb, None, None,
+                _tb(1, san_gb), alt=True); r += 1
+            sn += 1
+
+    # S3 section
+    _sec(r, sn, "S3"); r += 1
+    _dr(r, None, "S3 Storage", 1,
+        "To be consumed from main NFS storage",
+        "Will be based on the number of documents provided, "
+        "Considering per document size per Service Request of 512KB Each.",
+        None, None, s3_gb, None, None, round(s3_gb/1024, 8), alt=True); r += 1
+    sn += 1
+
+    # Infrastructure & Monitoring
+    _sec(r, sn, "Infrastructure & Monitoring"); r += 1
+    _dr(r, None, "SSL", 1, "Provided by Bank", "",
+        None, None, None, None, None, None); r += 1
+    _dr(r, None, "Image Registry", 1, "For Containers docker images", "",
+        None, None, IMAGE_REGISTRY_GB, None, None,
+        round(IMAGE_REGISTRY_GB/1024, 8), alt=True); r += 1
+    _dr(r, None, "Web Application Firewall (WAF)", 1, "",
+        "As per banks security policy.",
+        None, None, None, None, None, None); r += 1
+    _dr(r, None, "Bastion Host", 1, "", "As per banks policy.",
+        BASTION2_CPU, BASTION2_RAM, BASTION2_STORAGE,
+        BASTION2_CPU, BASTION2_RAM, _tb(1, BASTION2_STORAGE), alt=True); r += 1
+    _dr(r, None, "Email Service", 1, "Two million mails/month", "",
+        None, None, None, None, None, None); r += 1
+    if is_prod:
+        _dr(r, None, "Back Up - DB", 1,
+            "As per banks retention policy. Backup solution can be used.", "",
+            None, None, None, None, None, None); r += 1
+
+    # Column widths (col A=stub, B onward)
+    ws.column_dimensions["A"].width = 2
+    for col_i, w in enumerate([8, 42, 8, 20, 35, 14, 12, 16, 12, 14, 16, 4, 35, 4]):
+        ws.column_dimensions[get_column_letter(2+col_i)].width = w
+
+
+def generate_onprem_excel(
+    metrics:      dict,
+    distribution: dict,
+    customer:     str  = "Bank-Name",
+    output_dir:   str  = "reports",
+    env_pricing:  dict = None,
+    db_type:      str  = "SQL Server",
+    years:        int  = 5,
+    filename:     str  = "onprem_openshift_sizing.xlsx",
+) -> str:
+    """
+    Generates the OpenShift or Kubeadm On-Premise sizing workbook.
+    Sheets: Data, PROD-1Yr…NYr, DR, PRE-PROD, UAT, SIT
+    Master Nodes are always 3 (constant).
+    Returns the saved file path.
+    """
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    metrics_by_year = _onprem_metrics_by_year(metrics, years)
+
+    wb = Workbook()
+    wb.remove(wb.active)   # remove default blank sheet
+
+    # Data sheet
+    _build_onprem_data_sheet(wb, metrics_by_year, customer)
+
+    # PROD sheets — one per year
+    for m in metrics_by_year:
+        y = m["year"]
+        _build_onprem_env_sheet(
+            wb,
+            sheet_name=f"PROD-{y}Yr",
+            env_label=f"PROD (Year {y})",
+            env_data=m,
+            customer=customer,
+            is_prod=True,
+            include_reporting_db=True,
+            archival_san_gb=5000,
+            db_type=db_type,
+        )
+
+    # DR sheet — mirrors last PROD year
+    _build_onprem_env_sheet(
+        wb,
+        sheet_name="DR",
+        env_label="DR",
+        env_data=dict(metrics_by_year[-1]),
+        customer=customer,
+        is_prod=True,
+        include_reporting_db=True,
+        archival_san_gb=5000,
+        db_type=db_type,
+    )
+
+    # PRE-PROD — Year-1 scale, 1 worker node, no reporting DB
+    y1 = metrics_by_year[0]
+    preprod_m = dict(y1)
+    preprod_m["worker_nodes"] = 1
+    preprod_m["infra_nodes"]  = 2
+    preprod_m["db_nodes"]     = 1
+    preprod_m["db_vcpu"]      = y1["db_vcpu"] // max(y1["db_nodes"], 1)
+    preprod_m["db_ram"]       = y1["db_ram"]  // max(y1["db_nodes"], 1)
+    preprod_m["nfs_gb"]       = y1["data_gb"] + y1["s3_gb"] + 1*256 + 2*256 + IMAGE_REGISTRY_GB
+    preprod_m["san_gb"]       = y1["data_gb"]
+    _build_onprem_env_sheet(
+        wb, "PRE-PROD", "PRE-PROD", preprod_m, customer,
+        is_prod=False, include_reporting_db=False, db_type=db_type,
+    )
+
+    # UAT — fixed small env
+    uat_m = dict(y1)
+    uat_m["worker_nodes"] = 1
+    uat_m["infra_nodes"]  = 2
+    uat_m["db_nodes"]     = 1
+    uat_m["db_vcpu"]      = y1["db_vcpu"] // max(y1["db_nodes"], 1)
+    uat_m["db_ram"]       = y1["db_ram"]  // max(y1["db_nodes"], 1)
+    uat_m["data_gb"]      = 500
+    uat_m["s3_gb"]        = 500
+    uat_m["nfs_gb"]       = 500 + 500 + 1*256 + 2*256 + IMAGE_REGISTRY_GB
+    uat_m["san_gb"]       = 500
+    _build_onprem_env_sheet(
+        wb, "UAT", "UAT", uat_m, customer,
+        is_prod=False, include_reporting_db=False, db_type=db_type,
+    )
+
+    # SIT — same as UAT
+    sit_m = dict(uat_m)
+    _build_onprem_env_sheet(
+        wb, "SIT", "SIT", sit_m, customer,
+        is_prod=False, include_reporting_db=False, db_type=db_type,
+    )
+
+    out_path = os.path.join(output_dir, filename)
+    wb.save(out_path)
+    print(f"[excel_exporter] Saved On-Prem sizing ({db_type}): {out_path}")
+    return out_path

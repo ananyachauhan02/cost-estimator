@@ -6,9 +6,8 @@ from database import get_all_clients, create_client, delete_client
 from rbac import can, role_badge
 from theme import inject_theme
 
-inject_theme()
-
 # Config handled by app.py
+inject_theme()
 
 
 def handle_delete_client(client_id, client_name):
@@ -25,19 +24,22 @@ def handle_delete_client(client_id, client_name):
 st.markdown("""
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+  html, body, [data-testid="stAppViewContainer"] { font-family:'Inter',sans-serif; background-color:var(--bg) !important; color: var(--text) !important; }
 
   /* ── Top nav ── */
   .top-nav {
     display:flex; align-items:center; justify-content:space-between;
-    padding:1rem 0 1.5rem; border-bottom:2px solid #fadde1; margin-bottom:2rem;
+    padding:1rem 0 1.5rem; border-bottom:2px solid rgba(79,142,247,0.3); margin-bottom:2rem;
   }
   .top-nav .brand {
     font-family:'Plus Jakarta Sans',sans-serif;
     font-size:2rem; font-weight:800;
     letter-spacing:-0.03em; line-height:1;
-    color: #111111;
+    background: linear-gradient(135deg, #60a5fa 0%, #4f8ef7 40%, #00d4aa 100%);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    filter: drop-shadow(0 0 20px rgba(79,142,247,0.3));
   }
-  .top-nav .welcome { color:#555555; font-size:0.85rem; }
+  .top-nav .welcome { color:var(--text2); font-size:0.85rem; }
 
   /* ── Section title ── */
   .sec-title {
@@ -47,21 +49,21 @@ st.markdown("""
     letter-spacing:-0.02em;
     line-height:1.2;
   }
-  .sec-sub   { color:#555555; font-size:0.84rem; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:1px solid #fadde1; }
+  .sec-sub   { color:var(--text2); font-size:0.84rem; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:1px solid rgba(79,142,247,0.2); }
 
   /* ══════════════════════════════════════════════
      CLIENT CARD — base
   ══════════════════════════════════════════════ */
   .client-card {
-    background: #ffffff;
-    border: 1.5px solid #fadde1;
+    background: var(--surface);
+    border: 1.5px solid rgba(79,142,247,0.25);
     border-radius: 16px;
     padding: 1.4rem 1.5rem;
     transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
     position: relative;
     cursor: pointer;
     min-height: 160px;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.25);
     overflow: hidden;
   }
   .client-card::before {
@@ -69,25 +71,25 @@ st.markdown("""
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 3px;
-    background: linear-gradient(90deg, #ff69b4, #fadde1);
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
     border-radius: 16px 16px 0 0;
     z-index: 5;
   }
 
   /* Card content elements */
   .card-icon   { width:42px; height:42px; border-radius:10px;
-    background:linear-gradient(135deg,rgba(255,105,180,.15),rgba(255,182,193,.1));
-    border:1px solid rgba(255,105,180,.2);
+    background:linear-gradient(135deg,rgba(79,142,247,.18),rgba(0,212,170,.1));
+    border:1px solid rgba(79,142,247,.25);
     display:flex; align-items:center; justify-content:center;
     font-size:1.2rem; margin-bottom:0.65rem; opacity:1; transition:opacity 0.2s ease; }
   .card-name   { font-family:'Plus Jakarta Sans',sans-serif; font-size:1.1rem; font-weight:700;
-    color:#111111; margin-bottom:0.15rem; white-space:nowrap; overflow:hidden;
+    color:var(--text); margin-bottom:0.15rem; white-space:nowrap; overflow:hidden;
     text-overflow:ellipsis; letter-spacing:-0.01em; opacity:1; transition:opacity 0.2s ease; }
-  .card-sector { font-size:.72rem; color:#333333; font-weight:600;
+  .card-sector { font-size:.72rem; color:var(--text2); font-weight:500;
     text-transform:uppercase; letter-spacing:.06em; margin-bottom:.65rem;
     opacity:1; transition:opacity 0.2s ease; }
-  .card-meta   { display:flex; gap:.85rem; font-size:.78rem; color:#444444; font-weight:500; opacity:1; transition:opacity 0.2s ease; }
-  .card-meta span { color:#ff69b4; font-weight:700; }
+  .card-meta   { display:flex; gap:.85rem; font-size:.76rem; color:var(--text3); opacity:1; transition:opacity 0.2s ease; }
+  .card-meta span { color:var(--accent); font-weight:600; }
 
   /* ══════════════════════════════════════════════
      HOVER OVERLAY — buttons appear INSIDE the card
@@ -111,9 +113,9 @@ st.markdown("""
   @media (hover: hover) {
     div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"]:has(.client-card):hover
         .client-card {
-      border-color: #ff69b4 !important;
-      background: #fffafd !important;
-      box-shadow: 0 8px 30px rgba(255,105,180,0.15) !important;
+      border-color: var(--accent) !important;
+      background: var(--surface2) !important;
+      box-shadow: var(--glow) !important;
     }
     div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"]:has(.client-card):hover
         .card-icon,
@@ -190,79 +192,249 @@ st.markdown("""
     transition: all 0.18s ease !important;
   }
 
-  /* — New Estimate: dark neutral — */
+  /* — New Estimate: blue primary — */
   div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"]:has(.client-card)
       > div:nth-child(2) .stButton > button {
-    background: #ddeea0 !important;
-    border: 1px solid #bbcc66 !important;
-    color: #556600 !important;
-    font-weight: 700 !important;
-    box-shadow: 0 1px 4px rgba(170,204,0,0.15) !important;
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6) !important;
+    border: 1px solid rgba(99,157,255,0.5) !important;
+    color: #fff !important;
+    box-shadow: 0 2px 10px rgba(59,130,246,0.35) !important;
   }
   div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"]:has(.client-card)
       > div:nth-child(2) .stButton > button:hover {
-    background: #aacc00 !important;
-    border-color: #88aa00 !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 14px rgba(170,204,0,0.4) !important;
+    background: linear-gradient(135deg, #2563eb, #60a5fa) !important;
+    box-shadow: 0 4px 18px rgba(59,130,246,0.5) !important;
   }
 
-  /* — View History: clearly visible grey — */
+  /* — View History: outlined neutral — */
   div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"]:has(.client-card)
       > div:nth-child(3) .stButton > button {
-    background: #e8e8e8 !important;
-    border: 1px solid #aaaaaa !important;
-    color: #111111 !important;
-    font-weight: 600 !important;
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(148,163,184,0.28) !important;
+    color: #94a3b8 !important;
   }
   div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"]:has(.client-card)
       > div:nth-child(3) .stButton > button:hover {
-    background: #cccccc !important;
-    border-color: #888888 !important;
-    color: #000000 !important;
+    background: rgba(79,142,247,0.12) !important;
+    border-color: #4f8ef7 !important;
+    color: #e8edf8 !important;
   }
 
-  /* — Delete Client: clear danger style — */
+  /* — Delete Client: danger outline → filled on hover — */
   div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"]:has(.client-card)
       > div:nth-child(4) .stButton > button {
-    background: #fff0f0 !important;
-    border: 1px solid #f87171 !important;
-    color: #dc2626 !important;
-    font-weight: 600 !important;
+    background: rgba(239,68,68,0.06) !important;
+    border: 1px solid rgba(239,68,68,0.3) !important;
+    color: #f87171 !important;
   }
   div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"]:has(.client-card)
       > div:nth-child(4) .stButton > button:hover {
-    background: #dc2626 !important;
-    border-color: #dc2626 !important;
-    color: #ffffff !important;
-    box-shadow: 0 3px 14px rgba(220,38,38,0.35) !important;
+    background: linear-gradient(135deg, #b91c1c, #ef4444) !important;
+    border-color: #ef4444 !important;
+    color: #fff !important;
+    box-shadow: 0 3px 14px rgba(239,68,68,0.4) !important;
   }
 
   /* ── Text inputs ── */
-  .stTextInput > label { color:#444444 !important; font-size:.82rem !important; }
-  .stTextInput input   { background:#ffffff !important; border:1px solid #fadde1 !important; border-radius:10px !important; color:#111111 !important; }
-  .stTextInput input:focus { border-color:#ff69b4 !important; }
+  .stTextInput > label { color:var(--text2) !important; font-size:.82rem !important; }
+  .stTextInput input   { background:var(--surface2) !important; border:1px solid var(--border) !important; border-radius:10px !important; color:var(--text) !important; }
+  .stTextInput input:focus { border-color:var(--accent) !important; }
 
   /* ── Logout btn ── */
-  #logout-btn > button { background:transparent !important; border:1px solid #dedede !important; color:#555555 !important; border-radius:8px !important; font-size:.8rem !important; padding:.35rem .8rem !important; }
-  #logout-btn > button:hover { border-color:#ff4d6d !important; color:#ff4d6d !important; }
+  #logout-btn > button { background:transparent !important; border:1px solid var(--border) !important; color:var(--text3) !important; border-radius:8px !important; font-size:.8rem !important; padding:.35rem .8rem !important; }
+  #logout-btn > button:hover { border-color:var(--error) !important; color:var(--error) !important; }
+
+  /* ── Force dark on ALL Streamlit native containers ── */
+  .stApp, section[data-testid="stMain"], section[data-testid="stMain"] > *,
+  div[data-testid="stMainBlockContainer"], div[data-testid="stMainBlockContainer"] > *,
+  div[data-testid="block-container"], div[data-testid="block-container"] > *,
+  div[data-testid="stVerticalBlock"], div[data-testid="stHorizontalBlock"],
+  .main, .main > * { background-color: #0a0e1a !important; color: #e8edf8 !important; }
+  input, textarea, select, div[data-baseweb="input"] > div,
+  div[data-baseweb="base-input"] > input, div[data-baseweb="select"] > div,
+  div[data-testid="stDateInput"] input, div[data-testid="stTextInput"] input,
+  div[data-testid="stNumberInput"] input, div[role="listbox"], div[role="option"] {
+    background-color: #151d35 !important; color: #e8edf8 !important; border-color: #2a3555 !important;
+  }
+  div[data-testid="stExpander"], div[data-testid="stExpander"] > div {
+    background-color: #151d35 !important; border-color: #2a3555 !important;
+  }
+  div[data-testid="stAlert"] { background-color: #151d35 !important; border-color: #2a3555 !important; }
+
 
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+/* ═══════════════════════════════════════════════
+   NUCLEAR DARK MODE — hardcoded, no config needed
+═══════════════════════════════════════════════ */
+
+/* Every possible Streamlit container */
+html, body,
+.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+[data-testid="stMainBlockContainer"],
+[data-testid="block-container"],
+[data-testid="stVerticalBlock"],
+[data-testid="stHorizontalBlock"],
+[data-testid="stSidebar"],
+[data-testid="stSidebarContent"],
+[data-testid="stSidebarUserContent"],
+[data-testid="stHeader"],
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"],
+section.main,
+.main,
+.block-container,
+div[class*="appview"],
+div[class*="main"],
+div[class*="block"] {
+  background-color: #0a0e1a !important;
+  color: #e8edf8 !important;
+}
 
 
-# ── Top Navigation ────────────────────────────────────────────────────────
-logo_col, logout_col = st.columns([10, 2])
-with logo_col:
-    st.image("assets/logo.png", width=180)
-with logout_col:
-    if st.button("Logout", key="logout_btn_clients"):
-        st.session_state.logged_in = False
-        st.rerun()
 
+/* All inputs */
+input, textarea, select {
+  background-color: #1c2640 !important;
+  color: #e8edf8 !important;
+  border: 1px solid #2a3555 !important;
+}
+
+/* Streamlit input wrappers */
+[data-testid="stTextInput"] > div > div,
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] > div > div,
+[data-testid="stNumberInput"] input,
+[data-testid="stDateInput"] > div > div,
+[data-testid="stDateInput"] input,
+[data-testid="stTimeInput"] input,
+[data-testid="stTextArea"] textarea {
+  background-color: #1c2640 !important;
+  color: #e8edf8 !important;
+  border-color: #2a3555 !important;
+}
+
+/* Selectbox / dropdown */
+[data-testid="stSelectbox"] > div > div,
+[data-baseweb="select"] > div,
+[data-baseweb="input"] > div,
+[data-baseweb="base-input"],
+[data-baseweb="base-input"] > div,
+[data-baseweb="popover"],
+[data-baseweb="menu"],
+[role="listbox"],
+[role="option"],
+ul[role="listbox"],
+li[role="option"] {
+  background-color: #151d35 !important;
+  color: #e8edf8 !important;
+  border-color: #2a3555 !important;
+}
+
+/* Slider */
+[data-testid="stSlider"] > div > div > div,
+[data-testid="stSlider"] div[role="slider"] {
+  background-color: #2a3555 !important;
+}
+
+/* Expanders */
+[data-testid="stExpander"],
+[data-testid="stExpander"] > div,
+[data-testid="stExpander"] summary {
+  background-color: #151d35 !important;
+  border-color: #2a3555 !important;
+  color: #e8edf8 !important;
+}
+
+/* Tabs */
+[data-baseweb="tab-list"],
+[data-baseweb="tab"],
+[data-baseweb="tab-panel"],
+[role="tabpanel"],
+[role="tab"] {
+  background-color: #151d35 !important;
+  color: #e8edf8 !important;
+  border-color: #2a3555 !important;
+}
+[aria-selected="true"] {
+  background-color: #4f8ef7 !important;
+  color: #ffffff !important;
+}
+
+/* Alerts / info boxes */
+[data-testid="stAlert"],
+[data-testid="stAlert"] > div,
+[data-testid="stNotification"] {
+  background-color: #151d35 !important;
+  border-color: #2a3555 !important;
+  color: #e8edf8 !important;
+}
+
+/* Metrics */
+[data-testid="stMetric"],
+[data-testid="stMetricValue"],
+[data-testid="stMetricLabel"],
+[data-testid="stMetricDelta"] {
+  background-color: #151d35 !important;
+  color: #e8edf8 !important;
+}
+
+/* Dataframes */
+[data-testid="stDataFrame"],
+[data-testid="stDataFrame"] > div,
+[data-testid="stTable"],
+.stDataFrame iframe {
+  background-color: #151d35 !important;
+  color: #e8edf8 !important;
+}
+
+/* Checkboxes, radios */
+[data-testid="stCheckbox"],
+[data-testid="stRadio"],
+[data-testid="stRadio"] > div,
+[data-testid="stCheckbox"] > label {
+  color: #e8edf8 !important;
+}
+
+/* All labels */
+label, .stMarkdown p, .stMarkdown span,
+p, span, li {
+  color: #e8edf8 !important;
+}
+
+/* Dividers */
+hr { border-color: #2a3555 !important; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0a0e1a; }
+::-webkit-scrollbar-thumb { background: #2a3555; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #4f8ef7; }
+</style>
+""", unsafe_allow_html=True)
+
+# ── Top nav ────────────────────────────────────────────────────────────────
 user_email = st.session_state.get("user", {}).get("email", "")
-st.markdown(f'<div style="color:#666; font-size:0.85rem; margin-top:-1.5rem; margin-bottom:1.5rem;">Welcome, {user_email} · {role_badge()}</div>', unsafe_allow_html=True)
+nav_l, nav_r = st.columns([6, 1])
+with nav_l:
+    st.markdown(f"""
+    <div class="top-nav">
+      <div class="brand">☁️ BusinessNext Cost Estimator <span style="vertical-align: text-bottom;">{role_badge()}</span></div>
+      <div class="welcome">Welcome, {user_email}</div>
+    </div>
+    """, unsafe_allow_html=True)
+with nav_r:
+    st.markdown("<div style='padding-top:0.85rem'></div>", unsafe_allow_html=True)
+    if st.button("⎋ Logout", key="logout_top"):
+        for k in list(st.session_state.keys()):
+            del st.session_state[k]
+        st.rerun()
 
 # ── Section title + Add Client ─────────────────────────────────────────────
 col_title, col_add = st.columns([5, 1])

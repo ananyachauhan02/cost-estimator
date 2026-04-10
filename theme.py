@@ -15,8 +15,8 @@ html, body,
 .stApp,
 [data-testid="stAppViewContainer"],
 [data-testid="stMain"] {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
   margin: 0 !important;
   padding: 0 !important;
 }
@@ -75,12 +75,13 @@ header[data-testid="stHeader"] {
 }
 
 /* Hover state */
-[data-testid="stSidebarNavLink"]:hover,
+[data-testid="stSidebarNavLink"]:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
 [data-testid="stSidebarNavLink"]:hover *,
 [data-testid="stSidebarNavLink"]:hover p,
 [data-testid="stSidebarNavLink"]:hover span {
-  background-color: #222222 !important;
-  color: #ffffff !important;
+  background-color: transparent !important;
 }
 
 /* Active/selected */
@@ -98,7 +99,7 @@ header[data-testid="stHeader"] {
 [data-testid="stSidebarNavLink"][aria-selected="true"] p,
 [data-testid="stSidebarNavLink"][aria-selected="true"] span {
   background-color: transparent !important;
-  color: #ffffff !important;
+  color: var(--bg) !important;
 }
 
 /* Section headers */
@@ -114,8 +115,8 @@ header[data-testid="stHeader"] {
 
 /* All inputs */
 input, textarea, select {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
   border: 1px solid #2a3555 !important;
 }
 
@@ -128,8 +129,8 @@ input, textarea, select {
 [data-testid="stDateInput"] input,
 [data-testid="stTimeInput"] input,
 [data-testid="stTextArea"] textarea {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
   border-color: #2a3555 !important;
 }
 
@@ -139,8 +140,8 @@ input, textarea, select {
 [data-baseweb="input"] > div,
 [data-baseweb="base-input"],
 [data-baseweb="base-input"] > div {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
   border-color: #2a3555 !important;
 }
 
@@ -160,24 +161,24 @@ input, textarea, select {
 [role="option"],
 ul[role="listbox"],
 li[role="option"] {
-  background-color: #ffffff !important;
-  color: #000000 !important;
-  border-color: #dee2e6 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
 }
 
 /* Expanders */
 [data-testid="stExpander"],
 [data-testid="stExpander"] > div {
-  background-color: #ffffff !important;
+  background-color: var(--bg) !important;
   border-color: #2a3555 !important;
-  color: #000000 !important;
+  color: var(--text) !important;
   margin: 1rem 0 !important;
 }
 
 [data-testid="stExpander"] summary {
-  background-color: #fadde1 !important;
+  background-color: var(--surface) !important;
   border-color: #2a3555 !important;
-  color: #000000 !important;
+  color: var(--text) !important;
 }
 
 /* Tabs */
@@ -186,22 +187,22 @@ li[role="option"] {
 [data-baseweb="tab-panel"],
 [role="tabpanel"],
 [role="tab"] {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
   border-color: #2a3555 !important;
 }
 [aria-selected="true"] {
   background-color: #4f8ef7 !important;
-  color: #ffffff !important;
+  color: var(--bg) !important;
 }
 
 /* Alerts / info boxes */
 [data-testid="stAlert"],
 [data-testid="stAlert"] > div,
 [data-testid="stNotification"] {
-  background-color: #ffffff !important;
+  background-color: var(--bg) !important;
   border-color: #2a3555 !important;
-  color: #000000 !important;
+  color: var(--text) !important;
 }
 
 /* Metrics */
@@ -209,8 +210,8 @@ li[role="option"] {
 [data-testid="stMetricValue"],
 [data-testid="stMetricLabel"],
 [data-testid="stMetricDelta"] {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
 }
 
 /* Dataframes */
@@ -218,8 +219,8 @@ li[role="option"] {
 [data-testid="stDataFrame"] > div,
 [data-testid="stTable"],
 .stDataFrame iframe {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
 }
 
 /* Checkboxes, radios */
@@ -227,13 +228,13 @@ li[role="option"] {
 [data-testid="stRadio"],
 [data-testid="stRadio"] > div,
 [data-testid="stCheckbox"] > label {
-  color: #000000 !important;
+  color: var(--text) !important;
 }
 
 /* All labels */
 label, .stMarkdown p, .stMarkdown span,
 p, span, li {
-  color: #000000 !important;
+  color: var(--text) !important;
 }
 
 /* Dividers */
@@ -253,10 +254,10 @@ THEME_CSS = """
 
 /* ── Root variables ─────────────────────── */
 :root {
-  --bg:         #ffffff;
-  --bg2:        #000000;
-  --surface:    #f8f9fa;
-  --surface2:   #f1f3f5;
+  --bg:         #0a0e1a;
+  --bg2:        var(--text);
+  --surface:    #151d35;
+  --surface2:   #1c2640;
   --border:     #2a3555;
   --accent:     #4f8ef7;
   --accent2:    #7c5cfc;
@@ -267,9 +268,9 @@ THEME_CSS = """
   --warning:    #f0a500;
   --error:      #ff4d6d;
   --info:       #4f8ef7;
-  --text:       #000000;
-  --text2:      #333333;
-  --text3:      #555555;
+  --text:       #e8edf8;
+  --text2:      #8b95b0;
+  --text3:      #a2adcc;
   --radius:     12px;
   --radius-lg:  20px;
   --shadow:     0 8px 32px rgba(0,0,0,0.4);
@@ -287,26 +288,26 @@ section[data-testid="stSidebar"] + div,
 div[class*="appview-container"],
 div[class*="main"] {
   font-family: 'Inter', sans-serif !important;
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
 }
 
 .stApp {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
 }
 
 /* ── Animated gradient header bar ───────────────────────────── */
 .bn-header {
-  background: #fffafd !important;
-  border: 1.5px solid #fadde1 !important;
+  background: var(--surface2) !important;
+  border: 1.5px solid var(--border) !important;
   border-radius: var(--radius-lg);
   padding: 2.25rem 2.75rem;
   margin: 1.5rem 0 2.5rem 0 !important;
   position: relative;
   overflow: hidden;
   animation: fadeSlideDown 0.6s ease-out;
-  box-shadow: 0 12px 48px rgba(255,105,180,0.1), 0 2px 12px rgba(0,0,0,0.03) !important;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.5), 0 2px 12px rgba(0,0,0,0.3) !important;
 }
 
 .bn-header::before {
@@ -314,14 +315,14 @@ div[class*="main"] {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #ff69b4, #fadde1);
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
 }
 
 .bn-header h1 {
   font-family: 'Plus Jakarta Sans', sans-serif !important;
   font-size: 2rem !important;
   font-weight: 800 !important;
-  color: #000000 !important;
+  color: var(--text) !important;
   margin: 0 0 0.35rem 0 !important;
   letter-spacing: -0.035em;
   line-height: 1.1;
@@ -339,16 +340,16 @@ div[class*="main"] {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255,105,180,0.1) !important;
-  border: 1px solid rgba(255,105,180,0.2) !important;
-  color: #ff69b4 !important;
+  background: rgba(79,142,247,0.1) !important;
+  border: 1px solid rgba(79,142,247,0.2) !important;
+  color: var(--accent) !important;
   font-size: 0.8rem;
   font-weight: 700;
   padding: 6px 14px;
   border-radius: 20px;
   margin-top: 1rem;
   letter-spacing: 0.03em;
-  box-shadow: 0 2px 8px rgba(255,105,180,0.08);
+  box-shadow: 0 2px 8px rgba(79,142,247,0.08);
 }
 
 /* ── Section cards ───────────────────────────────────────────── */
@@ -568,6 +569,14 @@ div[class*="main"] {
 }
 
 /* ── Streamlit button overrides ──────────────────────────────────────── */
+[data-testid="stButton"],
+[data-testid="stDownloadButton"] {
+  display: flex !important;
+  align-items: center !important;
+  margin-top: 0px !important;
+  padding-top: 0px !important;
+}
+
 .stButton > button,
 .stButton > button[kind="primary"],
 .stButton > button[kind="secondary"] {
@@ -577,7 +586,7 @@ div[class*="main"] {
   transition: all 0.2s ease !important;
   background: #4f8ef7 !important;
   border: none !important;
-  color: #ffffff !important;
+  color: var(--bg) !important;
   box-shadow: 0 4px 16px rgba(79,142,247,0.3) !important;
 }
 
@@ -609,7 +618,7 @@ div.element-container:has(.green-btn-target) + div.element-container .stButton >
 .stTextInput > div > div > input,
 .stNumberInput > div > div > input,
 .stSelectbox > div > div {
-  background: #ffffff !important;
+  background: var(--surface2) !important;
   border: 1px solid var(--border) !important;
   border-radius: 8px !important;
   color: var(--text) !important;
@@ -619,12 +628,13 @@ div[data-testid="stDateInput"] input {
   border: none !important;
   background-color: transparent !important;
   box-shadow: none !important;
+  color: var(--text) !important;
 }
 
 .stTextInput > div > div > input:focus,
 .stNumberInput > div > div > input:focus {
-  border-color: #ff69b4 !important;
-  box-shadow: 0 0 0 2px rgba(255,105,180,0.2) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(79,142,247,0.2) !important;
 }
 
 label, .stCheckbox label, .stSelectbox label {
@@ -685,31 +695,68 @@ label, .stCheckbox label, .stSelectbox label {
     max-width: 200px !important;
     transform: none !important;
     transition: none !important;
-    background: #111111 !important;
-    border-right: 1px solid rgba(255,255,255,0.1) !important;
+    background: #0f1629 !important;
+    border-right: 2px solid rgba(79,142,247,0.2) !important;
     box-shadow: 2px 0 16px rgba(0,0,0,0.3) !important;
   }
 
   [data-testid="stSidebarContent"] {
     width: 200px !important;
     min-width: 200px !important;
-    background: #111111 !important;
+    background: #0f1629 !important;
     transition: none !important;
     /* ── KEY: flex column lets us reorder logo above nav ── */
     display: flex !important;
     flex-direction: column !important;
   }
 
-  /* ── Logo block: pulled to top via order: -1 ── */
+  /* ── Targeted Logo Scaling for st.logo ── */
+  [data-testid="stSidebarHeader"], 
+  [data-testid="stLogo"],
+  button[aria-label="Navigate to home page"] {
+    width: 200px !important;
+    max-width: 200px !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    background: transparent !important;
+    border: none !important;
+  }
+
+  [data-testid="stSidebarHeader"] img,
+  [data-testid="stLogo"] img,
+  button[aria-label="Navigate to home page"] img {
+    width: 210px !important;
+    max-width: 210px !important;
+    height: auto !important;
+    max-height: 140px !important;
+    object-fit: contain !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+    transform: scale(1.1) !important;
+    transform-origin: center center !important;
+  }
+
+  /* ── Sidebar Nav spacing ── */
+  [data-testid="stSidebarNav"] {
+    order: 0 !important;
+    padding-top: 0.5rem !important;
+    margin-top: 0 !important;
+  }
+
   [data-testid="stSidebarUserContent"] {
     order: -1 !important;
-    background: #111111 !important;
-    padding: 1.25rem 1rem 1rem 1rem !important;
+    background: #0f1629 !important;
+    padding: 0.5rem !important;
     border-bottom: 1px solid rgba(255,255,255,0.1) !important;
     margin-bottom: 0.25rem !important;
     display: flex !important;
     align-items: center !important;
-    justify-content: center !important;
+    justify-content: flex-start !important;
     flex-shrink: 0 !important;
   }
 
@@ -722,20 +769,6 @@ label, .stCheckbox label, .stSelectbox label {
     padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
-  }
-
-  /* Center and size the image */
-  [data-testid="stSidebarUserContent"] [data-testid="stImage"] {
-    display: flex !important;
-    justify-content: center !important;
-    width: 100% !important;
-  }
-  [data-testid="stSidebarUserContent"] [data-testid="stImage"] img {
-    max-width: 148px !important;
-    width: 85% !important;
-    margin: 0 auto !important;
-    display: block !important;
-    background: transparent !important;
   }
 
   /* ── Nav sits below logo ── */
@@ -764,11 +797,11 @@ label, .stCheckbox label, .stSelectbox label {
     transition: background 0.2s ease !important;
   }
   [data-testid="stSidebarNavLink"]:hover {
-    background: rgba(255,255,255,0.08) !important;
+    background-color: rgba(255, 255, 255, 0.08) !important;
   }
   [data-testid="stSidebarNavLink"][aria-current="page"] {
     background: rgba(255,255,255,0.12) !important;
-    border-left: 3px solid #ff0055 !important;
+    border-left: 3px solid var(--accent) !important;
   }
 
   /* Icons */
@@ -780,8 +813,8 @@ label, .stCheckbox label, .stSelectbox label {
     height: 22px !important;
     flex-shrink: 0 !important;
     opacity: 1 !important;
-    fill: #ffffff !important;
-    color: #ffffff !important;
+    fill: var(--text) !important;
+    color: var(--text) !important;
   }
 
   /* Labels */
@@ -789,25 +822,30 @@ label, .stCheckbox label, .stSelectbox label {
     opacity: 1 !important;
     font-size: 0.9rem !important;
     font-weight: 500 !important;
-    color: #ffffff !important;
+    color: var(--text) !important;
   }
 
-  /* Section headers */
-  [data-testid="stSidebarNavSectionHeader"] {
+  /* Section headers — target the actual DOM: header > span > div > p */
+  [data-testid="stSidebarNavSectionHeader"],
+  [data-testid="stSidebarNavSectionHeader"] *,
+  [data-testid="stSidebar"] [data-testid="stSidebarNav"] header,
+  [data-testid="stSidebar"] [data-testid="stSidebarNav"] header span,
+  [data-testid="stSidebar"] [data-testid="stSidebarNav"] header div,
+  [data-testid="stSidebar"] [data-testid="stSidebarNav"] header p {
     font-size: 0.65rem !important;
     font-weight: 700 !important;
     text-transform: uppercase !important;
     letter-spacing: 0.1em !important;
     color: rgba(255,255,255,0.5) !important;
-    padding: 18px 16px 8px !important;
     opacity: 1 !important;
+    visibility: visible !important;
   }
 
   [data-testid="stSidebar"] .stMarkdown h1,
   [data-testid="stSidebar"] .stMarkdown h2,
   [data-testid="stSidebar"] .stMarkdown h3 {
     font-family: 'Plus Jakarta Sans', sans-serif !important;
-    color: #ffffff !important;
+    color: var(--text) !important;
   }
 
 /* ── Animations ───────────────────────────────────────────────── */
@@ -854,18 +892,18 @@ div[data-testid="stNumberInput"] > div,
 div[data-testid="stNumberInput"] input,
 div[data-testid="stNumberInput"] button,
 div[data-testid="stNumberInput"] > div > div {
-  background-color: #f1f3f5 !important;
-  color: #000000 !important;
+  background-color: var(--surface2) !important;
+  color: var(--text) !important;
   border-color: #2a3555 !important;
 }
 div[data-testid="stNumberInput"] button {
-  background-color: #dee2e6 !important;
-  color: #000000 !important;
+  background-color: var(--border) !important;
+  color: var(--text) !important;
   border-color: #2a3555 !important;
 }
 div[data-testid="stNumberInput"] button:hover {
-  background-color: #ced4da !important;
-  color: #000000 !important;
+  background-color: var(--border) !important;
+  color: var(--text) !important;
 }
 
 /* Labels above inputs */
@@ -873,7 +911,7 @@ div[data-testid="stNumberInput"] label,
 div[data-testid="stTextInput"] label,
 div[data-testid="stSelectbox"] label,
 div[data-testid="stSlider"] label {
-  color: #000000 !important;
+  color: var(--text) !important;
   font-size: 0.82rem !important;
   font-weight: 500 !important;
 }
@@ -881,8 +919,8 @@ div[data-testid="stSlider"] label {
 /* Expander header */
 div[data-testid="stExpander"] summary,
 div[data-testid="stExpander"] > div[role="button"] {
-  background-color: #fadde1 !important;
-  color: #000000 !important;
+  background-color: var(--surface) !important;
+  color: var(--text) !important;
 }
 
 /* ── Force white background on all Streamlit containers ───────── */
@@ -897,8 +935,8 @@ div[data-testid="block-container"] > *,
 div[data-testid="stVerticalBlock"],
 div[data-testid="stHorizontalBlock"],
 .main, .main > * {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
 }
 
 /* ── Inputs, selects ────────────────────────────────────────────── */
@@ -909,23 +947,23 @@ div[data-baseweb="select"] > div,
 div[data-testid="stDateInput"] input,
 div[data-testid="stTextInput"] input,
 div[data-testid="stNumberInput"] input {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
   border-color: #2a3555 !important;
 }
 
 div[data-baseweb="popover"],
 div[role="listbox"],
 div[role="option"] {
-  background-color: #ffffff !important;
-  color: #000000 !important;
-  border-color: #dee2e6 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
 }
 
 /* ── Expanders ──────────────────────────────────────────────────── */
 div[data-testid="stExpander"],
 div[data-testid="stExpander"] > div {
-  background-color: #ffffff !important;
+  background-color: var(--bg) !important;
   border-color: #2a3555 !important;
 }
 
@@ -933,39 +971,70 @@ div[data-testid="stExpander"] > div {
 div[data-testid="stDataFrame"],
 div[data-testid="stDataFrame"] > div,
 iframe {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
 }
 
 /* ── Metric cards ───────────────────────────────────────────────── */
 div[data-testid="stMetric"],
 div[data-testid="stMetricValue"],
 div[data-testid="stMetricLabel"] {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
 }
 
 /* ── Tabs ───────────────────────────────────────────────────────── */
 div[data-baseweb="tab-panel"],
 div[role="tabpanel"] {
-  background-color: #ffffff !important;
+  background-color: var(--bg) !important;
 }
 
 /* ── Alert boxes ────────────────────────────────────────────────── */
 div[data-testid="stAlert"] {
-  background-color: #ffffff !important;
+  background-color: var(--bg) !important;
   border-color: #2a3555 !important;
 }
 
-/* ── Text ───────────────────────────────────────────────────────── */
-p, span, label, div, h1, h2, h3, h4, h5, h6, li {
-  color: #000000;
+/* ── Text — scoped to main content only, not sidebar ───────────── */
+section[data-testid="stMain"] p,
+section[data-testid="stMain"] span,
+section[data-testid="stMain"] label,
+section[data-testid="stMain"] div,
+section[data-testid="stMain"] h1,
+section[data-testid="stMain"] h2,
+section[data-testid="stMain"] h3,
+section[data-testid="stMain"] h4,
+section[data-testid="stMain"] h5,
+section[data-testid="stMain"] h6,
+section[data-testid="stMain"] li {
+  color: var(--text);
 }
 
 /* ── Protect custom colored elements ────────────────────────────── */
 .bn-header, .bn-card, .kpi-card, .cost-banner,
 .history-card, .client-card, .estimate-card {
-  color: #000000 !important;
+  color: var(--text) !important;
+}
+
+/* ── Smooth page transition — fade-in on every page load ─────────
+   Eliminates the white/blank flash that appears when Streamlit
+   re-renders the main content area between page navigations.      */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+[data-testid="stMainBlockContainer"],
+div[data-testid="block-container"] {
+  animation: pageIn 0.25s ease-out both !important;
+  will-change: opacity, transform !important;
+}
+
+/* Keep the sidebar perfectly still during transitions */
+[data-testid="stSidebar"],
+[data-testid="stSidebarContent"] {
+  animation: none !important;
+  transition: none !important;
 }
 </style>
 """
@@ -981,7 +1050,7 @@ def page_header(customer_name: str = "", client_mode: str = ""):
     if client_mode == "saas":
         mode_badge = '<span class="bn-badge">☁️ SaaS — PostgreSQL</span>'
     elif client_mode == "onprem":
-        mode_badge = '<span class="bn-badge" style="background:var(--success); opacity:0.15; border-color:var(--success); color:var(--success);">🏢 On-Premise</span>'
+        mode_badge = '<span class="bn-badge" style="background:rgba(0,180,140,0.12);border-color:rgba(0,180,140,0.35);color:#009e7a;">🏢 On-Premise</span>'
 
     if customer_name:
         st.markdown(f"""

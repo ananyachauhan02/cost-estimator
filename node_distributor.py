@@ -310,7 +310,7 @@ OUTPUT FORMAT:
     return baseline, "rule-based (all groq models failed)", last_error
 
 
-def _db_nodes(metrics: dict, workload_profile: dict | None = None) -> list:
+def _db_nodes(metrics: dict, workload_profile: dict | None = None, db_type: str = "PostgreSQL") -> list:
     """
     Build DB/storage node list. Respects workload_profile flags:
       reporting_db    (bool) -> Reporting DB server + SAN   [default True]
@@ -322,26 +322,53 @@ def _db_nodes(metrics: dict, workload_profile: dict | None = None) -> list:
     data_gb = int(metrics.get("data_size_gb", 2100))
     s3_gb  = int(metrics.get("s3_size_gb",  5900))
 
+    # Determine labels based on db_type
+    if db_type == "Oracle":
+        db_cat    = "Oracle Database"
+        db_label  = "Linux Nodes – Database server (Primary)"
+        rep_cat   = "Oracle Database – Reporting"
+        rep_label = "Linux Nodes – Database server (Reporting)"
+        role_pfx  = "oracle"
+    elif db_type == "SQL Server":
+        db_cat    = "SQL Server Database"
+        db_label  = "Windows Nodes – Database server (Primary)"
+        rep_cat   = "SQL Server Database – Reporting"
+        rep_label = "Windows Nodes – Database server (Reporting)"
+        role_pfx  = "mssql"
+    else:
+        db_cat    = "PGSQL Database"
+        db_label  = "Linux Nodes – Database server (Primary)"
+        rep_cat   = "PGSQL Database – Reporting"
+        rep_label = "Linux Nodes – Database server (Reporting)"
+        role_pfx  = "pgsql"
+
+    if db_type == "Oracle":
+        cluster_info = "Active/Active"
+    elif db_type == "SQL Server":
+        cluster_info = "Always On / AD / Witness"
+    else:
+        cluster_info = "etcd+haproxy, pgbackrest"
+
     nodes = [
         {
-            "role_key": "pgsql_primary", "category": "PGSQL Database",
-            "label": "Linux Nodes – Database server (Primary)",
+            "role_key": f"{role_pfx}_primary", "category": db_cat,
+            "label": db_label,
             "nodes": 2, "vcpu_per_node": 32, "ram_per_node": 128,
             "storage_per_node_gb": 300, "instance_family": "Memory Intensive",
             "pricing_model": None,
             "reasoning": "2 primary DB nodes per HA reference architecture",
         },
         {
-            "role_key": "pgsql_cluster", "category": "PGSQL Database",
-            "label": "Linux Nodes – Cluster (etcd+haproxy, pgbackrest)",
+            "role_key": f"{role_pfx}_cluster", "category": db_cat,
+            "label": f"Nodes – Cluster ({cluster_info})",
             "nodes": 4, "vcpu_per_node": 2, "ram_per_node": 8,
             "storage_per_node_gb": 100, "instance_family": "Memory Intensive",
             "pricing_model": None,
             "reasoning": "Fixed 4-node coordination cluster",
         },
         {
-            "role_key": "pgsql_san", "category": "PGSQL Database",
-            "label": "Storage: SAN (Primary DB)",
+            "role_key": f"{role_pfx}_san", "category": db_cat,
+            "label": f"Storage: SAN (Primary {db_type} DB)",
             "nodes": 2, "vcpu_per_node": 0, "ram_per_node": 0,
             "storage_per_node_gb": data_gb, "instance_family": "10K IOPS",
             "pricing_model": None,
@@ -361,16 +388,16 @@ def _db_nodes(metrics: dict, workload_profile: dict | None = None) -> list:
     if reporting_db:
         nodes += [
             {
-                "role_key": "pgsql_reporting", "category": "PGSQL Database – Reporting",
-                "label": "Linux Nodes – Database server (Reporting)",
+                "role_key": f"{role_pfx}_reporting", "category": rep_cat,
+                "label": rep_label,
                 "nodes": 1, "vcpu_per_node": 32, "ram_per_node": 128,
                 "storage_per_node_gb": 300, "instance_family": "Memory Intensive",
                 "pricing_model": None,
                 "reasoning": "Reporting DB server – user opted in",
             },
             {
-                "role_key": "pgsql_reporting_san", "category": "PGSQL Database – Reporting",
-                "label": "Storage: SAN (Reporting DB)",
+                "role_key": f"{role_pfx}_reporting_san", "category": rep_cat,
+                "label": f"Storage: SAN (Reporting {db_type} DB)",
                 "nodes": 1, "vcpu_per_node": 0, "ram_per_node": 0,
                 "storage_per_node_gb": data_gb, "instance_family": "10K IOPS",
                 "pricing_model": None,
@@ -407,6 +434,7 @@ def distribute_nodes(
     metrics:          dict,
     workload_profile: dict,
     use_llm:          bool = True,
+    db_type:          str  = "PostgreSQL",
 ) -> dict:
     """
     Main entry point called by app pages.
@@ -452,11 +480,11 @@ def distribute_nodes(
 
     return {
         "worker_nodes": worker_nodes,
-        "db_nodes":     _db_nodes(metrics, workload_profile),
+        "db_nodes":     _db_nodes(metrics, workload_profile, db_type),
         "fixed_roles":  FIXED_ROLES,
         "summary": {
             "total_worker_nodes": sum(r["nodes"] for r in worker_nodes),
-            "total_db_nodes":     sum(r["nodes"] for r in _db_nodes(metrics, workload_profile)),
+            "total_db_nodes":     sum(r["nodes"] for r in _db_nodes(metrics, workload_profile, db_type)),
             "llm_used":           llm_used,
             "confidence":         confidence,
             "notes":              notes,

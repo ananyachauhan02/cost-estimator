@@ -150,9 +150,14 @@ def render_metrics_cards(metrics: dict):
         _metric(c3, "Total RAM (GB)", int(metrics.get("total_memory_workernode_gb", 0)))
         _metric(c4, "S3 Size (GB)", int(metrics.get("s3_size_gb", 0)))
         _metric(c1, "Data Size (GB)", int(metrics.get("data_size_gb", 0)))
-        _metric(c2, "SQL RAM (GB)", int(metrics.get("sql_server_ram_gb", 0)))
-        _metric(c3, "Oracle RAM (GB)", int(metrics.get("oracle_ram_gb", 0)))
-        _metric(c4, "Postgres RAM", int(metrics.get("postgres_ram_gb", 0)))
+        
+        db_type = metrics.get("db_type", "PostgreSQL")
+        if db_type == "Oracle":
+            _metric(c2, "Oracle RAM (GB)", int(metrics.get("oracle_ram_gb", 0)))
+        elif db_type == "SQL Server":
+            _metric(c2, "SQL Server RAM (GB)", int(metrics.get("sql_server_ram_gb", 0)))
+        else:
+            _metric(c2, "PostgreSQL RAM (GB)", int(metrics.get("postgres_ram_gb", 0)))
 
 
 # ── Render node distribution table ───────────────────────────────────────

@@ -32,9 +32,7 @@ from ui_components import (
 
 # ── Auth guard / config handled by app.py ────────────────────────────────
 
-# ── Hide sidebar ───────────────────────────────────────────────────────────
-# (Removed page-level dark mode CSS overrides; theme.py now handles all input styling)
-
+# Theme is globally handled by app.py
 inject_theme()
 
 # ── Role Guard ─────────────────────────────────────────────────────────────
@@ -55,11 +53,13 @@ DEFAULTS = {
     "customer_name_snap":  "",
     "client_mode":         None,
     "db_type_snap":        "PostgreSQL",
+    "gcp_pricing_xlsx":    None,
+    "onprem_sizing_xlsx":  None,
+    "onprem_oracle_sizing_xlsx": None,
     "last_saved_id":       None,
     "pdf_report_path":     None,
     "gcp_pricing":         None,
     "comparison":          None,
-    "gcp_pricing_xlsx":    None,
     "selected_aws_region": "us-east-1",
     "selected_gcp_region": "us-central1",
 }
@@ -69,16 +69,21 @@ for k, v in DEFAULTS.items():
 
 # ── Top Navigation ────────────────────────────────────────────────────────
 client = st.session_state.get("selected_client")
-top_logo, top_nav = st.columns([10, 2])
-with top_logo:
-    st.image("assets/logo.png", width=180)
-with top_nav:
+_, nav_right = st.columns([9, 1])
+with nav_right:
     if st.button("← Clients", key="nav_back_clients_estimator", use_container_width=True):
         st.switch_page("pages/1_Clients.py")
 
 # ── Page header ────────────────────────────────────────────────────────────
+client = st.session_state.get("selected_client")
+default_customer = ""
+if client:
+    default_customer = client.get("name", "")
+elif st.session_state.customer_name_snap:
+    default_customer = st.session_state.customer_name_snap
+
 page_header(
-    customer_name=st.session_state.customer_name_snap,
+    customer_name=st.session_state.customer_name_snap or default_customer,
     client_mode=st.session_state.client_mode or "",
 )
 
@@ -88,13 +93,6 @@ page_header(
 with st.container():
     section_title("📋", "Project Information")
     c1, c2, c3 = st.columns(3)
-
-    # Pre-fill customer name from selected client
-    default_customer = ""
-    if client:
-        default_customer = client.get("name", "")
-    elif st.session_state.customer_name_snap:
-        default_customer = st.session_state.customer_name_snap
 
     customer_name = c1.text_input(
         "Customer / Bank Name",
@@ -155,7 +153,7 @@ elif st.session_state.client_mode == "onprem":
     st.info(
         "**🏢 On-Premise Mode** — DB: PostgreSQL / SQL Server / Oracle · "
         "Environments: DR optional · "
-        "Output: Cloud Sizing XLSX only (no pricing)",
+        "Output: Cloud Sizing XLSX + **OpenShift / Kubeadm Oracle On-Prem Sizing XLSX** (dynamically layout-matched)",
         icon="ℹ️",
     )
 else:
@@ -372,22 +370,28 @@ with st.expander("🔧 Detailed Sizing Assumptions", expanded=False):
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# SECTION 5 — One-Time Costs
+# SECTION 5 — One-Time Costs  (SaaS only — On-Prem is sizing only)
 # ══════════════════════════════════════════════════════════════════════════
-with st.expander("💰 One-Time Costs  (Year 1 only — included in PUPM calculation)", expanded=True):
-    st.caption("These are charged once in Year 1 and flow into: Total Cost → Discounted Cost → PUPM.")
-    ot1, ot2, ot3 = st.columns(3)
-    perf_testing_cost = ot1.number_input("Performance Testing ($)", min_value=0, value=5000, step=500)
-    migration_cost    = ot2.number_input("Migration / Data Bootup ($)", min_value=0, value=5000, step=500)
-    managed_svc_onetime = ot3.number_input("Managed Services Setup ($)", min_value=0, value=1000, step=100)
-    one_time_total_display = perf_testing_cost + migration_cost + managed_svc_onetime
-    st.markdown(
-        f"<div style='margin: 1.5rem 0 0.5rem 0; padding:12px 18px; background:var(--surface2); border-radius:10px; border:1px solid var(--border); box-shadow:var(--shadow);'>"
-        f"<span style='font-size:0.85rem; font-weight:600; color:var(--text2);'>Estimated One-Time Migration:</span> &nbsp; "
-        f"<strong style='font-size:1.1rem; color:var(--accent);'>${one_time_total_display:,.0f}</strong>"
-        f"</div>",
-        unsafe_allow_html=True,
-    )
+if client_mode != "onprem":
+    with st.expander("💰 One-Time Costs  (Year 1 only — included in PUPM calculation)", expanded=True):
+        st.caption("These are charged once in Year 1 and flow into: Total Cost → Discounted Cost → PUPM.")
+        ot1, ot2, ot3 = st.columns(3)
+        perf_testing_cost = ot1.number_input("Performance Testing ($)", min_value=0, value=5000, step=500)
+        migration_cost    = ot2.number_input("Migration / Data Bootup ($)", min_value=0, value=5000, step=500)
+        managed_svc_onetime = ot3.number_input("Managed Services Setup ($)", min_value=0, value=1000, step=100)
+        one_time_total_display = perf_testing_cost + migration_cost + managed_svc_onetime
+        st.markdown(
+            f"<div style='margin: 1.5rem 0 0.5rem 0; padding:12px 18px; background:var(--surface2); border-radius:10px; border:1px solid var(--border); box-shadow:var(--shadow);'>"
+            f"<span style='font-size:0.85rem; font-weight:600; color:var(--text2);'>Estimated One-Time Migration:</span> &nbsp; "
+            f"<strong style='font-size:1.1rem; color:var(--accent);'>${one_time_total_display:,.0f}</strong>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+else:
+    # On-Prem: no pricing, zero out one-time cost variables
+    perf_testing_cost   = 0
+    migration_cost      = 0
+    managed_svc_onetime = 0
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -527,7 +531,12 @@ if st.button(btn_label, type="primary", use_container_width=True, key="btn_gener
             st.session_state.last_metrics = metrics
 
         with st.spinner("Step 3 — Distributing nodes…"):
-            distribution = distribute_nodes(metrics=metrics, workload_profile=workload_profile, use_llm=use_llm)
+            distribution = distribute_nodes(
+                metrics=metrics, 
+                workload_profile=workload_profile, 
+                use_llm=use_llm,
+                db_type=db_type
+            )
             st.session_state.last_distribution = distribution
 
         pricing = None
@@ -617,9 +626,11 @@ if st.button(btn_label, type="primary", use_container_width=True, key="btn_gener
                 gcp_pricing=st.session_state.get("gcp_pricing"),
                 comparison=st.session_state.get("comparison"),
             )
-            st.session_state.cloud_sizing_xlsx  = excel_paths.get("cloud_sizing")
-            st.session_state.aws_pricing_xlsx   = excel_paths.get("aws_pricing")
-            st.session_state.gcp_pricing_xlsx   = excel_paths.get("gcp_pricing")
+            st.session_state.cloud_sizing_xlsx        = excel_paths.get("cloud_sizing")
+            st.session_state.aws_pricing_xlsx         = excel_paths.get("aws_pricing")
+            st.session_state.gcp_pricing_xlsx         = excel_paths.get("gcp_pricing")
+            st.session_state.onprem_sizing_xlsx       = excel_paths.get("onprem_sizing")
+            st.session_state.onprem_oracle_sizing_xlsx = excel_paths.get("onprem_oracle_sizing")
             st.session_state.customer_name_snap = customer_name
             st.session_state.db_type_snap       = db_type
 
@@ -742,11 +753,19 @@ if client_mode == "saas" and st.session_state.get("comparison"):
         st.dataframe(df_comp, use_container_width=True, hide_index=True)
 
 # ── Download buttons ───────────────────────────────────────────────────────
-if st.session_state.cloud_sizing_xlsx or st.session_state.aws_pricing_xlsx:
+if st.session_state.cloud_sizing_xlsx or st.session_state.aws_pricing_xlsx or st.session_state.get("onprem_sizing_xlsx"):
     divider()
     section_title("📥", "Download Reports")
     cname = re.sub(r'[^a-zA-Z0-9_\-]', '_', st.session_state.customer_name_snap)
-    xl1, xl2 = st.columns(2)
+    
+    # ── SaaS Mode Columns (2 buttons) vs On-Prem Columns (3 buttons)
+    if client_mode == "saas":
+        cols = st.columns(2)
+        xl1, xl2 = cols[0], cols[1]
+    else:
+        cols = st.columns(3)
+        xl1, xl2, xl3 = cols[0], cols[1], cols[2]
+
     if st.session_state.cloud_sizing_xlsx:
         try:
             with open(st.session_state.cloud_sizing_xlsx, "rb") as f:
@@ -755,7 +774,7 @@ if st.session_state.cloud_sizing_xlsx or st.session_state.aws_pricing_xlsx:
                     key="dl_cloud_sizing", use_container_width=True)
         except Exception as e:
             st.error(f"Error downloading Cloud Sizing: {e}")
-    if client_mode == "saas" and st.session_state.aws_pricing_xlsx:
+    if client_mode == "saas" and st.session_state.get("aws_pricing_xlsx"):
         try:
             with open(st.session_state.aws_pricing_xlsx, "rb") as f:
                 xl2.download_button("💰 Pricing Forecast (XLSX)", f,
@@ -764,7 +783,30 @@ if st.session_state.cloud_sizing_xlsx or st.session_state.aws_pricing_xlsx:
         except Exception as e:
             st.error(f"Error downloading Pricing Forecast: {e}")
 
-    if st.session_state.get("pdf_report_path"):
+    if client_mode == "onprem":
+        if st.session_state.get("onprem_sizing_xlsx"):
+            try:
+                with open(st.session_state.onprem_sizing_xlsx, "rb") as f:
+                    xl2.download_button(
+                        "🏢 On-Prem OpenShift (XLSX)", f,
+                        file_name=f"onprem_openshift_sizing_{cname}.xlsx",
+                        key="dl_onprem_openshift", use_container_width=True,
+                    )
+            except Exception as e:
+                st.error(f"Error downloading On-Prem OpenShift Sizing: {e}")
+
+        if st.session_state.get("onprem_oracle_sizing_xlsx"):
+            try:
+                with open(st.session_state.onprem_oracle_sizing_xlsx, "rb") as f:
+                    xl3.download_button(
+                        "🏢 Kubeadm Open Source Oracle (XLSX)", f,
+                        file_name=f"onprem_kubeadm_oracle_sizing_{cname}.xlsx",
+                        key="dl_onprem_kubeadm_oracle", use_container_width=True,
+                    )
+            except Exception as e:
+                st.error(f"Error downloading Kubeadm Oracle Sizing: {e}")
+
+    if client_mode != "onprem" and st.session_state.get("pdf_report_path"):
         try:
             with open(st.session_state.pdf_report_path, "rb") as f:
                 pdf_bytes = f.read()
