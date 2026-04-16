@@ -21,7 +21,7 @@
 
 ## 1. Executive Summary
 
-This document presents the **Intelligent BusinessNext AWS Cost Estimation Platform** — a fully automated, intelligent system that combines a modern Streamlit web interface, real-time cloud pricing APIs, PostgreSQL persistence, LLM-powered node sizing, and an **integrated AI Chatbot** for interactive "what-if" analysis.
+This document presents the **Intelligent BusinessNext Cost Estimation Platform** — a fully automated, intelligent system that combines a modern Streamlit web interface, real-time cloud pricing APIs, PostgreSQL persistence, LLM-powered node sizing, and an **integrated AI Chatbot** for interactive "what-if" analysis.
 
 The platform:
 
@@ -94,7 +94,7 @@ The following capabilities are **live in the platform today**:
 ### ☁️ Real-Time AWS Pricing
 - Fetches live pricing from the **AWS Pricing API** (`aws_pricer` module)
 - Supports all major AWS regions (us-east-1, ap-south-1, eu-west-1, etc.)
-- Calculates On-Demand and Reserved Instance pricing for EC2, Managed DB, EBS, S3, CloudWatch
+- Calculates On-Demand and Reserved Instance pricing for EC2, RDS, EBS, S3, CloudWatch
 - Produces itemized monthly and annual cost breakdowns
 
 ### 🌐 GCP Pricing & Multi-Cloud Comparison
@@ -211,7 +211,7 @@ The platform generates two categories of deliverables:
 | Report | Contents |
 |---|---|
 | **Cloud Sizing Report** (`Cloud_Sizing_<client>.xlsx`) | Worker node specs, vCPU & RAM distribution, storage plan, DB sizing, per-environment resource tables |
-| **AWS Pricing Report** (`AWS_Pricing_<client>.xlsx`) | Itemized EC2, Managed DB, EBS, S3 costs; monthly/annual/5-year totals; reserved vs on-demand comparison; GCP comparison tab |
+| **Pricing Report** (`Pricing_<client>.xlsx`) | Itemized EC2, RDS, EBS, S3 costs; monthly/annual/5-year totals; reserved vs on-demand comparison; GCP comparison tab |
 
 ### 📄 PDF Report
 A fully formatted PDF (`<client>_CostEstimate.pdf`) including:

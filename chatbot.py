@@ -21,9 +21,9 @@ load_dotenv(override=True)
 
 GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]
 
-SYSTEM_PROMPT = """You are an expert AWS cloud cost consultant embedded inside a cost estimation tool for banking CRM deployments (BusinessNext on AWS).
+SYSTEM_PROMPT = """You are an expert infrastructure sizing consultant embedded inside a cost estimation tool for BusinessNext deployments.
 
-You have access to the full estimate context below. Answer questions about costs, architecture, node distribution, and optimisation suggestions. Be specific with numbers. If a user asks about cost reduction, suggest concrete changes. Keep responses concise (3-5 sentences max unless a detailed breakdown is asked for).
+You have access to the full estimate context below. Answer questions about infrastructure sizing, node distribution, architecture, and optimisation suggestions. Be specific with numbers. If a user asks about cost reduction, suggest concrete changes to sizing or architecture. Keep responses concise (3-5 sentences max unless a detailed breakdown is asked for).
 
 Always cite specific numbers from the estimate when relevant. If the user asks something not in the estimate, say so clearly.
 
@@ -32,27 +32,10 @@ ESTIMATE CONTEXT:
 """
 
 
-def _build_context(pricing: dict, distribution: dict, metrics: dict) -> str:
+def _build_context(pricing: dict | None, distribution: dict, metrics: dict, client_mode: str = "saas") -> str:
     """Serialize the full estimate into a compact string for the LLM context."""
     ctx = {
-        "monthly_cost_usd":  pricing.get("total_monthly_usd"),
-        "annual_cost_usd":   pricing.get("total_annual_usd"),
-        "three_year_usd":    pricing.get("total_3year_usd"),
-        "category_totals":   pricing.get("category_totals", {}),
-        "top_services": [
-            {
-                "label":    r.get("label"),
-                "category": r.get("category"),
-                "monthly":  r.get("monthly_usd"),
-                "instance": r.get("instance_type"),
-                "note":     r.get("note"),
-            }
-            for r in sorted(
-                pricing.get("priced_roles", []),
-                key=lambda x: x.get("monthly_usd", 0),
-                reverse=True,
-            )[:10]
-        ],
+        "client_mode": client_mode,
         "node_distribution": {
             "total_worker_nodes": distribution["summary"]["total_worker_nodes"],
             "total_db_nodes":     distribution["summary"]["total_db_nodes"],
@@ -72,10 +55,36 @@ def _build_context(pricing: dict, distribution: dict, metrics: dict) -> str:
             "s3_size_gb":                metrics.get("s3_size_gb"),
             "mobile_users":               metrics.get("mobile_users"),
         },
-        "assumptions":        pricing.get("assumptions", {}),
-        "inflation_forecast": pricing.get("inflation_forecast", {}),
-        "db_selection":       pricing.get("db_selection", {}),
     }
+
+    # Add pricing data only if available (SaaS mode)
+    if pricing and client_mode == "saas":
+        ctx.update({
+            "monthly_cost_usd":  pricing.get("total_monthly_usd"),
+            "annual_cost_usd":   pricing.get("total_annual_usd"),
+            "three_year_usd":    pricing.get("total_3year_usd"),
+            "category_totals":   pricing.get("category_totals", {}),
+            "top_services": [
+                {
+                    "label":    r.get("label"),
+                    "category": r.get("category"),
+                    "monthly":  r.get("monthly_usd"),
+                    "instance": r.get("instance_type"),
+                    "note":     r.get("note"),
+                }
+                for r in sorted(
+                    pricing.get("priced_roles", []),
+                    key=lambda x: x.get("monthly_usd", 0),
+                    reverse=True,
+                )[:10]
+            ],
+            "assumptions":        pricing.get("assumptions", {}),
+            "inflation_forecast": pricing.get("inflation_forecast", {}),
+            "db_selection":       pricing.get("db_selection", {}),
+        })
+    else:
+        ctx["note"] = "This is an on-premise deployment. No cloud pricing data is available - this is sizing information only."
+
     return json.dumps(ctx, indent=2)
 
 
@@ -110,30 +119,44 @@ def _call_groq(messages: list, context: str) -> str:
     return "❌ All Groq models rate-limited. Try again in a moment."
 
 
-def render_chatbot(pricing: dict, distribution: dict, metrics: dict):
+def render_chatbot(pricing: dict | None, distribution: dict, metrics: dict, client_mode: str = "saas"):
     """
     Render the full chatbot UI inside the Streamlit app.
     Call this after the pricing results are available.
     """
     st.markdown("---")
-    st.markdown("## 💬 Ask About This Estimate")
-    st.caption("Ask anything about costs, architecture, optimisations, or what-if scenarios.")
+    if client_mode == "onprem":
+        st.markdown("## 💬 Ask About This Infrastructure Sizing")
+        st.caption("Ask anything about infrastructure requirements, node distribution, architecture, or sizing scenarios.")
+    else:
+        st.markdown("## 💬 Ask About This Estimate")
+        st.caption("Ask anything about costs, architecture, node distribution, optimisations, or what-if scenarios.")
 
     # Session state for chat history
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
     if "chat_context" not in st.session_state:
-        st.session_state.chat_context = _build_context(pricing, distribution, metrics)
+        st.session_state.chat_context = _build_context(pricing, distribution, metrics, client_mode)
 
-    # Suggested questions
-    suggestions = [
-        "What is the most expensive service?",
-        "How can we reduce monthly cost by 20%?",
-        "What does the DB tier cost per month?",
-        "What would happen if we doubled the users?",
-        "Explain the node distribution rationale.",
-        "What is the 5-year total with inflation?",
-    ]
+    # Suggested questions based on client mode
+    if client_mode == "onprem":
+        suggestions = [
+            "What is the total infrastructure requirement?",
+            "How many worker nodes do I need?",
+            "What are the database sizing requirements?",
+            "What storage capacity is needed?",
+            "Explain the node distribution rationale.",
+            "What would happen if I double the users?",
+        ]
+    else:
+        suggestions = [
+            "What is the most expensive service?",
+            "How can we reduce monthly cost by 20%?",
+            "What does the DB tier cost per month?",
+            "What would happen if we doubled the users?",
+            "Explain the node distribution rationale.",
+            "What is the 5-year total with inflation?",
+        ]
 
     st.markdown("**💡 Suggested questions:**")
     cols = st.columns(3)
@@ -149,11 +172,18 @@ def render_chatbot(pricing: dict, distribution: dict, metrics: dict):
     chat_container = st.container(height=400, border=True)
     with chat_container:
         if not st.session_state.chat_history:
-            st.markdown(
-                "<div style='color:var(--text3);text-align:center;padding:40px;'>"
-                "Ask a question about your estimate above ☝️</div>",
-                unsafe_allow_html=True,
-            )
+            if client_mode == "onprem":
+                st.markdown(
+                    "<div style='color:var(--text3);text-align:center;padding:40px;'>"
+                    "Ask a question about your infrastructure sizing above ☝️</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    "<div style='color:var(--text3);text-align:center;padding:40px;'>"
+                    "Ask a question about your estimate above ☝️</div>",
+                    unsafe_allow_html=True,
+                )
         for msg in st.session_state.chat_history:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
@@ -177,5 +207,5 @@ def render_chatbot(pricing: dict, distribution: dict, metrics: dict):
     if st.session_state.chat_history:
         if st.button("🗑️ Clear Chat", key="clear_chat", type="secondary"):
             st.session_state.chat_history = []
-            st.session_state.chat_context = _build_context(pricing, distribution, metrics)
+            st.session_state.chat_context = _build_context(pricing, distribution, metrics, client_mode)
             st.rerun()

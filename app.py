@@ -18,127 +18,100 @@ st.set_page_config(
 
 inject_theme()
 
-# ── Global styles ─────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap');
 
-  /* ── Premium Login Page Styles ── */
-  html, body, [data-testid="stAppViewContainer"] {
-    font-family: 'Inter', sans-serif;
-    background-color: var(--bg) !important;
-  }
 
-  /* When on login page, inject radial gradients */
-  [data-testid="stAppViewContainer"]:has(.login-title) {
-      background: radial-gradient(circle at 15% 50%, rgba(79, 142, 247, 0.12), transparent 45%), 
-                  radial-gradient(circle at 85% 30%, rgba(0, 212, 170, 0.08), transparent 45%),
-                  var(--bg) !important;
-  }
-  
-  /* Glassmorphic Login Card */
-  div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2):has(.login-title) {
-      background: rgba(21, 29, 53, 0.7) !important;
-      backdrop-filter: blur(20px) !important;
-      -webkit-backdrop-filter: blur(20px) !important;
-      border: 1px solid rgba(79, 142, 247, 0.2) !important;
-      border-right: 1px solid rgba(79, 142, 247, 0.1) !important;
-      border-bottom: 1px solid rgba(79, 142, 247, 0.1) !important;
-      border-radius: 28px !important;
-      padding: 3.5rem 3rem !important;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.05) !important;
-      margin-top: 10vh !important;
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-  }
-  
-  /* Make the logo look intentional if it has a white bg */
-  div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2):has(.login-title) [data-testid="stImage"] img {
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  }
-
-  .login-title {
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 2.1rem;
-      font-weight: 800;
-      text-align: center;
-      background: linear-gradient(135deg, #ffffff 0%, #a2adcc 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-top: 1.5rem;
-      margin-bottom: 0.25rem;
-      letter-spacing: -0.02em;
-  }
-  
-  .login-subtitle {
-      color: var(--text2);
-      text-align: center;
-      font-size: 0.95rem;
-      margin-bottom: 2.5rem;
-  }
-
-  /* Inputs */
-  .stTextInput > label {
-    color: var(--text2) !important;
-    font-size: 0.85rem !important;
-    font-weight: 500 !important;
-    margin-bottom: 4px !important;
-  }
-  .stTextInput input {
-      background: rgba(0, 0, 0, 0.25) !important;
-      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-      color: white !important;
-      border-radius: 12px !important;
-      padding: 0.75rem 1rem !important;
-      transition: all 0.3s ease;
-  }
-  .stTextInput input:focus {
-      border-color: var(--accent) !important;
-      box-shadow: 0 0 0 3px rgba(79, 142, 247, 0.2) !important;
-      background: rgba(0, 0, 0, 0.4) !important;
-  }
-
-  /* Sign-In button */
-  div.stButton > button {
-      width: 100% !important;
-      background: linear-gradient(135deg, #4f8ef7 0%, #2563eb 100%) !important;
-      color: white !important;
-      border-radius: 12px !important;
-      padding: 0.75rem 2rem !important;
-      font-family: 'Plus Jakarta Sans', sans-serif !important;
-      font-weight: 700 !important;
-      letter-spacing: 0.02em;
-      font-size: 1rem !important;
-      border: none !important;
-      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3) !important;
-      transition: all 0.3s ease !important;
-      margin-top: 1.5rem !important;
-      cursor: pointer !important;
-  }
-  div.stButton > button:hover {
-      transform: translateY(-2px) !important;
-      box-shadow: 0 8px 24px rgba(37, 99, 235, 0.45) !important;
-      background: linear-gradient(135deg, #3b7de8 0%, #1d4ed8 100%) !important;
-  }
-</style>
-""", unsafe_allow_html=True)
 
 
 def login_ui():
-    _, col, _ = st.columns([1.2, 1.25, 1.2])  # tighter middle column for a sleek card
+    # CSS to make the middle column look like a unified login card
+    st.markdown("""
+    <style>
+    /* Hide sidebar on login */
+    [data-testid="stSidebar"] { display: none !important; }
+    [data-testid="stMain"] { margin-left: 0 !important; }
+
+    /* Full page centering */
+    [data-testid="stMainBlockContainer"],
+    [data-testid="block-container"] {
+        padding: 0 !important;
+        max-width: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-height: 100vh !important;
+    }
+    /* Hide horizontal block wrapper padding */
+    [data-testid="stHorizontalBlock"] {
+        width: 100% !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: flex-start !important;
+        gap: 0 !important;
+        padding: 0 !important;
+    }
+    /* Hide the side spacer columns */
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child,
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {
+        display: none !important;
+    }
+    /* Style the middle column as the card */
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) {
+        background: #ffffff !important;
+        border: 1px solid rgba(15,23,42,.08) !important;
+        border-radius: 16px !important;
+        box-shadow: 0 20px 60px rgba(0,0,0,.10), 0 4px 16px rgba(0,0,0,.06) !important;
+        padding: 36px 32px !important;
+        width: 400px !important;
+        max-width: 440px !important;
+        min-width: 340px !important;
+        flex: none !important;
+        animation: fadeUp .5s ease both !important;
+        margin-top: -6vh !important;
+    }
+    /* Override block child background */
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) *,
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) > div,
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) [data-testid="stVerticalBlock"] {
+        background-color: transparent !important;
+        background: transparent !important;
+    }
+    /* Button full width */
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) .stButton { width: 100% !important; }
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) .stButton > button {
+        width: 100% !important;
+        padding: 9px 16px !important;
+        font-size: 13px !important;
+    }
+    /* Input styling */
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) input {
+        background: var(--bg3) !important;
+        border: 1px solid var(--border2) !important;
+        padding: 8px 12px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    _, col, _ = st.columns([1, 1.4, 1])
     with col:
-        # We center the logo nicely using sub-columns
-        c1, c2, c3 = st.columns([1, 1.8, 1])
-        with c2:
-            st.image("assets/logo.png", use_container_width=True)
-            
-        st.markdown('<div class="login-title">BusinessNext Portal</div>', unsafe_allow_html=True)
-        st.markdown('<div class="login-subtitle">Sign in to your cost estimator</div>', unsafe_allow_html=True)
+        # Logo + title block
+        st.markdown("""
+        <div style="margin-bottom:24px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+            <div class="bn-login-logo-icon">B</div>
+            <div>
+              <div class="bn-login-logo-text">BusinessNext</div>
+              <div class="bn-login-logo-sub">Cost Estimator</div>
+            </div>
+          </div>
+          <div class="bn-login-title">Welcome back</div>
+          <div class="bn-login-sub">Sign in to continue to your workspace</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         email    = st.text_input("Email address", placeholder="admin@businessnext.com", key="login_email")
-        password = st.text_input("Password",      placeholder="••••••••",              type="password", key="login_pass")
+        password = st.text_input("Password", placeholder="••••••••", type="password", key="login_pass")
 
-        if st.button("Sign In →", key="btn_login"):
+        if st.button("Sign in →", key="btn_login", use_container_width=True, type="primary"):
             if not email.strip() or not password.strip():
                 st.error("Please enter both email and password.", icon="⚠️")
             else:
@@ -151,6 +124,14 @@ def login_ui():
                 else:
                     st.error("Invalid email or password.", icon="🔒")
 
+        st.markdown("""
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(15,23,42,.08);
+                    display:flex;justify-content:space-between;align-items:center;">
+          <span class="bn-login-hint-text">admin@businessnext.com / admin123</span>
+          <span class="bn-login-hint-text">viewer</span>
+        </div>
+        """, unsafe_allow_html=True)
+
 
 # ── Navigation ────────────────────────────────────────────────────────────
 login_pg      = st.Page(login_ui,               title="Login",     icon="🔒")
@@ -162,33 +143,38 @@ admin_pg      = st.Page("pages/4_Admin.py",     title="Admin",     icon="⚙️"
 if not st.session_state.get("logged_in"):
     pg = st.navigation([login_pg], position="hidden")
 else:
-    nav_dict = {
-        "Dashboard": [clients_pg],
-        "Details":   [estimates_pg, estimator_pg],
-    }
-    
+    pages = [clients_pg, estimates_pg, estimator_pg]
     if st.session_state.user.get("role") == "admin":
-        nav_dict["Administration"] = [admin_pg]
-    pg = st.navigation(nav_dict, position="sidebar")
+        pages.append(admin_pg)
+    pg = st.navigation(pages, position="sidebar")
 
 
-# ── Sidebar logo — Native Streamlit Component ──────
+# ── Sidebar logo ──────────────────────────────────────────────────────────
 if st.session_state.get("logged_in"):
-    st.logo("assets/logo.png")
-    st.markdown(
-        """
-        <style>
-        [data-testid="stSidebarUserContent"] {
-            display: none !important;
-        }
-        [data-testid="stSidebarNav"] {
-            margin-top: 0 !important;
-            padding-top: 0.5rem !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.logo("assets/logo_black.png")
+    # Show signed-in user info in sidebar bottom
+    user_email = st.session_state.user.get("email", "")
+    user_role  = st.session_state.user.get("role", "viewer")
+    role_color = {"admin": "var(--danger-lt)", "estimator": "var(--accent-lt)", "viewer": "var(--success-lt)"}
+    role_text_color = {"admin": "var(--danger)", "estimator": "var(--accent)", "viewer": "var(--success)"}
+    st.sidebar.markdown(f"""
+    <div style="padding:12px;border-top:1px solid var(--border);margin-top:auto;">
+      <div style="font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:700;
+                  text-transform:uppercase;letter-spacing:.4px;">Signed in as</div>
+      <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px;">{user_email}</div>
+      <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;
+                   background:{role_color.get(user_role,'var(--accent-lt)')};
+                   color:{role_text_color.get(user_role,'var(--accent)')};
+                   font-family:var(--fm);">{user_role}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Logout Button ────────────────────────────────────────────────────────
+    if st.sidebar.button("Logout", key="logout_sidebar_btn", use_container_width=True):
+        st.session_state.logged_in = False
+        st.session_state.user = None
+        st.rerun()
+
 
 
 pg.run()

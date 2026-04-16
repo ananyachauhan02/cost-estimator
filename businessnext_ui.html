@@ -1,0 +1,2660 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BusinessNext Cost Estimator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <style>
+    /* ── Reset ─────────────────────────────── */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    html {
+      font-size: 14px
+    }
+
+    /* ── Semantic palette (invariant) ──────── */
+    :root {
+      --accent: #4f6ef7;
+      --accent-lt: rgba(79, 110, 247, .10);
+      --accent-md: rgba(79, 110, 247, .20);
+      --success: #16a34a;
+      --success-lt: rgba(22, 163, 74, .10);
+      --warn: #d97706;
+      --warn-lt: rgba(217, 119, 6, .10);
+      --danger: #dc2626;
+      --danger-lt: rgba(220, 38, 38, .10);
+      --info: #0891b2;
+      --info-lt: rgba(8, 145, 178, .10);
+      --purple: #7c3aed;
+      --purple-lt: rgba(124, 58, 237, .10);
+      --trans: all .25s cubic-bezier(.4, 0, .2, 1);
+      --ff: 'Plus Jakarta Sans', sans-serif;
+      --fm: 'IBM Plex Mono', monospace;
+    }
+
+    /* ── Light mode surfaces ───────────────── */
+    body {
+      --bg: #f8fafc;
+      --bg2: #ffffff;
+      --bg3: #f1f5f9;
+      --border: rgba(15, 23, 42, .08);
+      --border2: rgba(15, 23, 42, .14);
+      --text: #0f172a;
+      --text2: #475569;
+      --text3: #94a3b8;
+      --text4: #cbd5e1;
+      --shadow: 0 1px 3px rgba(0, 0, 0, .06), 0 1px 2px rgba(0, 0, 0, .04);
+      --shadow2: 0 4px 16px rgba(0, 0, 0, .08), 0 1px 3px rgba(0, 0, 0, .04);
+      --shadow3: 0 20px 60px rgba(0, 0, 0, .10), 0 4px 16px rgba(0, 0, 0, .06);
+      font-family: var(--ff);
+      background: var(--bg);
+      color: var(--text);
+      transition: background .3s, color .3s;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Dark mode surfaces ────────────────── */
+    body.dark {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #1c2128;
+      --border: rgba(255, 255, 255, .07);
+      --border2: rgba(255, 255, 255, .12);
+      --text: #f0f6fc;
+      --text2: #8b949e;
+      --text3: #484f58;
+      --text4: #30363d;
+      --shadow: 0 1px 3px rgba(0, 0, 0, .30), 0 1px 2px rgba(0, 0, 0, .20);
+      --shadow2: 0 4px 16px rgba(0, 0, 0, .40), 0 1px 3px rgba(0, 0, 0, .20);
+      --shadow3: 0 20px 60px rgba(0, 0, 0, .50), 0 4px 16px rgba(0, 0, 0, .30);
+    }
+
+    /* ── Keyframes ─────────────────────────── */
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0
+      }
+
+      to {
+        opacity: 1
+      }
+    }
+
+    @keyframes slideR {
+      from {
+        opacity: 0;
+        transform: translateX(-14px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0)
+      }
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-8px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    @keyframes numPop {
+      from {
+        opacity: 0;
+        transform: scale(.92) translateY(4px)
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0)
+      }
+    }
+
+    @keyframes countUp {
+      from {
+        opacity: 0;
+        transform: translateY(6px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .35
+      }
+    }
+
+    @keyframes float {
+
+      0%,
+      100% {
+        transform: translateY(0)
+      }
+
+      50% {
+        transform: translateY(-4px)
+      }
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    @keyframes shimmer {
+      0% {
+        background-position: -200% 0
+      }
+
+      100% {
+        background-position: 200% 0
+      }
+    }
+
+    @keyframes borderGlow {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(79, 110, 247, 0)
+      }
+
+      50% {
+        box-shadow: 0 0 0 4px rgba(79, 110, 247, .12)
+      }
+    }
+
+    @keyframes barGrow {
+      from {
+        width: 0
+      }
+
+      to {
+        width: var(--w)
+      }
+    }
+
+    @keyframes accentLine {
+      from {
+        transform: scaleX(0)
+      }
+
+      to {
+        transform: scaleX(1)
+      }
+    }
+
+    @keyframes themeSwitch {
+      0% {
+        transform: rotate(0deg) scale(1)
+      }
+
+      50% {
+        transform: rotate(180deg) scale(0)
+      }
+
+      100% {
+        transform: rotate(360deg) scale(1)
+      }
+    }
+
+    /* ── Shell ─────────────────────────────── */
+    .shell {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      grid-template-rows: 54px 1fr;
+      min-height: 100vh
+    }
+
+    .topbar {
+      grid-column: 1/-1;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0;
+      animation: fadeIn .3s ease both;
+      box-shadow: var(--shadow);
+      position: sticky;
+      top: 0;
+      z-index: 100
+    }
+
+    .sidebar {
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      animation: slideR .35s ease both;
+      transition: background .3s, border-color .3s;
+      overflow-y: auto
+    }
+
+    .main {
+      background: var(--bg);
+      overflow-y: auto;
+      transition: background .3s
+    }
+
+    /* ── Topbar ────────────────────────────── */
+    .topbar-logo {
+      width: 220px;
+      flex-shrink: 0;
+      padding: 0 18px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 100%
+    }
+
+    .topbar-logo-icon {
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700
+    }
+
+    .topbar-logo-text {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -.3px
+    }
+
+    .topbar-logo-sub {
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--text3);
+      letter-spacing: .5px;
+      text-transform: uppercase
+    }
+
+    .topbar-center {
+      flex: 1;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px
+    }
+
+    .topbar-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--text3);
+      cursor: pointer;
+      transition: var(--trans);
+      min-width: 220px
+    }
+
+    .topbar-search:hover {
+      border-color: var(--accent);
+      color: var(--text2)
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 16px
+    }
+
+    .topbar-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text2);
+      font-size: 14px;
+      transition: var(--trans)
+    }
+
+    .topbar-btn:hover {
+      background: var(--bg3);
+      color: var(--text)
+    }
+
+    .topbar-btn.spinning {
+      animation: themeSwitch .4s ease
+    }
+
+    .avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--accent-lt);
+      border: 1.5px solid var(--accent-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent);
+      cursor: pointer
+    }
+
+    /* ── Sidebar ───────────────────────────── */
+    .sidebar-section {
+      padding: 16px 12px 8px
+    }
+
+    .sidebar-section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      color: var(--text3);
+      padding: 0 8px;
+      margin-bottom: 6px
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text2);
+      cursor: pointer;
+      transition: var(--trans);
+      position: relative;
+      border: none;
+      background: transparent;
+      width: 100%;
+      text-align: left
+    }
+
+    .nav:hover {
+      background: var(--bg3);
+      color: var(--text)
+    }
+
+    .nav.active {
+      background: var(--accent-lt);
+      color: var(--accent)
+    }
+
+    .nav.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 55%;
+      background: var(--accent);
+      border-radius: 0 2px 2px 0;
+      animation: accentLine .2s ease both
+    }
+
+    .nav-icon {
+      font-size: 14px;
+      width: 16px;
+      text-align: center;
+      flex-shrink: 0
+    }
+
+    .nav-badge {
+      margin-left: auto;
+      font-size: 9px;
+      font-weight: 700;
+      font-family: var(--fm);
+      background: var(--accent-lt);
+      color: var(--accent);
+      padding: 2px 6px;
+      border-radius: 20px
+    }
+
+    .nav-badge.danger {
+      background: var(--danger-lt);
+      color: var(--danger)
+    }
+
+    .sidebar-client {
+      margin: 8px 12px;
+      padding: 10px 12px;
+      background: var(--bg3);
+      border-radius: 10px;
+      border: 1px solid var(--border)
+    }
+
+    .sidebar-client-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--text3);
+      margin-bottom: 4px
+    }
+
+    .sidebar-client-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text)
+    }
+
+    .sidebar-client-meta {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--fm);
+      margin-top: 2px
+    }
+
+    .sidebar-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 8px 12px
+    }
+
+    /* ── Main content ──────────────────────── */
+    .content {
+      padding: 24px;
+      max-width: 1400px;
+      animation: fadeIn .3s ease both
+    }
+
+    /* ── Page header ───────────────────────── */
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 24px
+    }
+
+    .page-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -.4px
+    }
+
+    .page-subtitle {
+      font-size: 12px;
+      color: var(--text2);
+      margin-top: 3px
+    }
+
+    .page-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px
+    }
+
+    /* ── Buttons ───────────────────────────── */
+    .btn-primary {
+      padding: 6px 18px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--ff);
+      cursor: pointer;
+      transition: var(--trans)
+    }
+
+    .btn-primary:hover {
+      background: #3d5ce5;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(79, 110, 247, .35)
+    }
+
+    .btn-primary:active {
+      transform: translateY(0)
+    }
+
+    .btn-secondary {
+      padding: 5px 14px;
+      border-radius: 7px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--text2);
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--ff);
+      cursor: pointer;
+      transition: var(--trans)
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg3);
+      color: var(--text)
+    }
+
+    .btn-danger {
+      padding: 5px 14px;
+      border-radius: 7px;
+      border: 1px solid var(--danger-lt);
+      background: var(--danger-lt);
+      color: var(--danger);
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--ff);
+      cursor: pointer;
+      transition: var(--trans)
+    }
+
+    .btn-danger:hover {
+      background: var(--danger);
+      color: #fff
+    }
+
+    /* ── Metrics grid ──────────────────────── */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      margin-bottom: 20px
+    }
+
+    .metric-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: var(--trans), box-shadow .25s;
+      position: relative;
+      overflow: hidden;
+      animation: numPop .5s var(--delay, 0s) ease both
+    }
+
+    .metric-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow2)
+    }
+
+    .metric-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform .3s ease
+    }
+
+    .metric-card:hover::after {
+      transform: scaleX(1)
+    }
+
+    .metric-card.accent::after {
+      background: var(--accent)
+    }
+
+    .metric-card.success::after {
+      background: var(--success)
+    }
+
+    .metric-card.warn::after {
+      background: var(--warn)
+    }
+
+    .metric-card.danger::after {
+      background: var(--danger)
+    }
+
+    .metric-card.purple::after {
+      background: var(--purple)
+    }
+
+    .metric-card.info::after {
+      background: var(--info)
+    }
+
+    .metric-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--text3);
+      margin-bottom: 6px
+    }
+
+    .metric-value {
+      font-size: 22px;
+      font-weight: 700;
+      font-family: var(--fm);
+      color: var(--text);
+      line-height: 1;
+      animation: countUp .3s ease
+    }
+
+    .metric-delta {
+      font-size: 10px;
+      font-family: var(--fm);
+      margin-top: 4px
+    }
+
+    .metric-delta.up {
+      color: var(--success)
+    }
+
+    .metric-delta.down {
+      color: var(--danger)
+    }
+
+    .metric-delta.flat {
+      color: var(--text3)
+    }
+
+    /* ── Grid layouts ──────────────────────── */
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+      margin-bottom: 16px
+    }
+
+    .grid22 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px
+    }
+
+    .grid3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 16px
+    }
+
+    /* ── Panel ─────────────────────────────── */
+    .panel {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: var(--trans), box-shadow .25s;
+      margin-bottom: 16px
+    }
+
+    .panel:hover {
+      box-shadow: var(--shadow2)
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .panel-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      flex: 1
+    }
+
+    .panel-body {
+      padding: 16px
+    }
+
+    /* ── Tabs ──────────────────────────────── */
+    .tab-nav {
+      display: flex;
+      gap: 2px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 3px;
+      margin-bottom: 16px;
+      width: fit-content
+    }
+
+    .tab {
+      padding: 6px 16px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--ff);
+      border: none;
+      background: transparent;
+      color: var(--text2);
+      cursor: pointer;
+      transition: var(--trans)
+    }
+
+    .tab.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(79, 110, 247, .35)
+    }
+
+    .tab:hover:not(.active) {
+      background: var(--bg2);
+      color: var(--text)
+    }
+
+    .tab-content {
+      animation: slideDown .3s ease both
+    }
+
+    /* ── Badge ─────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-family: var(--fm)
+    }
+
+    .badge.success {
+      background: var(--success-lt);
+      color: var(--success)
+    }
+
+    .badge.warn {
+      background: var(--warn-lt);
+      color: var(--warn)
+    }
+
+    .badge.danger {
+      background: var(--danger-lt);
+      color: var(--danger)
+    }
+
+    .badge.info {
+      background: var(--info-lt);
+      color: var(--info)
+    }
+
+    .badge.accent {
+      background: var(--accent-lt);
+      color: var(--accent)
+    }
+
+    .badge.purple {
+      background: var(--purple-lt);
+      color: var(--purple)
+    }
+
+    /* ── Status dot ────────────────────────── */
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+      animation: pulse 2s ease-in-out infinite;
+      flex-shrink: 0
+    }
+
+    .dot.success {
+      background: var(--success)
+    }
+
+    .dot.warn {
+      background: var(--warn);
+      animation-duration: 1.5s
+    }
+
+    .dot.danger {
+      background: var(--danger);
+      animation-duration: 1s
+    }
+
+    .dot.info {
+      background: var(--info);
+      animation-duration: 2.5s
+    }
+
+    .dot.accent {
+      background: var(--accent)
+    }
+
+    /* ── Data table ────────────────────────── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed
+    }
+
+    .data-table th {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .6px;
+      color: var(--text3);
+      text-transform: uppercase;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      font-family: var(--ff)
+    }
+
+    .data-table tr {
+      cursor: pointer;
+      transition: background .15s
+    }
+
+    .data-table tr:hover td {
+      background: var(--bg3)
+    }
+
+    .data-table td {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text)
+    }
+
+    .data-table tr:last-child td {
+      border-bottom: none
+    }
+
+    .data-table .mono {
+      font-family: var(--fm);
+      color: var(--text2)
+    }
+
+    .data-table .right {
+      text-align: right;
+      font-family: var(--fm)
+    }
+
+    /* ── Form inputs ───────────────────────── */
+    .form-group {
+      margin-bottom: 16px
+    }
+
+    .form-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text2);
+      display: block;
+      margin-bottom: 6px;
+      text-transform: none;
+      letter-spacing: .4px;
+      font-family: var(--ff)
+    }
+
+    .form-input {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--text);
+      font-family: var(--ff);
+      font-size: 12px;
+      outline: none;
+      width: 100%;
+      transition: var(--trans)
+    }
+
+    .form-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79, 110, 247, .12)
+    }
+
+    .form-select {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      padding: 7px 12px;
+      color: var(--text);
+      font-family: var(--ff);
+      font-size: 12px;
+      outline: none;
+      width: 100%;
+      transition: var(--trans);
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center
+    }
+
+    .form-select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79, 110, 247, .12)
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px
+    }
+
+    .form-row3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px
+    }
+
+    /* ── Mode toggle buttons ───────────────── */
+    .mode-btns {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border2);
+      background: var(--bg3);
+      cursor: pointer;
+      transition: var(--trans);
+      text-align: center
+    }
+
+    .mode-btn:hover {
+      border-color: var(--accent);
+      background: var(--bg2)
+    }
+
+    .mode-btn.active {
+      border-color: var(--accent);
+      background: var(--accent-lt);
+      box-shadow: 0 0 0 1px var(--accent)
+    }
+
+    .mode-btn-icon {
+      font-size: 18px;
+      margin-bottom: 6px
+    }
+
+    .mode-btn-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      display: block
+    }
+
+    .mode-btn-sub {
+      font-size: 10px;
+      color: var(--text3);
+      display: block;
+      margin-top: 2px
+    }
+
+    /* ── Section label ─────────────────────── */
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--text3);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .section-label::before {
+      content: '';
+      width: 3px;
+      height: 14px;
+      background: var(--accent);
+      border-radius: 2px
+    }
+
+    /* ── Bar track ─────────────────────────── */
+    .bar-track {
+      flex: 1;
+      height: 6px;
+      background: var(--bg3);
+      border-radius: 3px;
+      overflow: hidden
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      animation: barGrow .9s .3s ease both;
+      animation-fill-mode: forwards
+    }
+
+    /* ── Feed item ─────────────────────────── */
+    .feed-item {
+      display: flex;
+      gap: 11px;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background .15s, transform .15s;
+      align-items: flex-start
+    }
+
+    .feed-item:hover {
+      background: var(--bg3);
+      transform: translateX(3px)
+    }
+
+    .feed-item:last-child {
+      border-bottom: none
+    }
+
+    .feed-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px
+    }
+
+    /* ── Alert banner ──────────────────────── */
+    .alert-banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1px solid;
+      margin-bottom: 16px;
+      animation: float 3.5s ease-in-out infinite
+    }
+
+    .alert-banner.warn {
+      background: linear-gradient(135deg, rgba(217, 119, 6, .06), rgba(217, 119, 6, .03));
+      border-color: rgba(217, 119, 6, .25);
+      color: var(--warn)
+    }
+
+    .alert-banner.info {
+      background: var(--info-lt);
+      border-color: rgba(8, 145, 178, .25);
+      color: var(--info)
+    }
+
+    .alert-banner.success {
+      background: var(--success-lt);
+      border-color: rgba(22, 163, 74, .25);
+      color: var(--success)
+    }
+
+    /* ── Client card ───────────────────────── */
+    .client-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 20px
+    }
+
+    .client-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: var(--trans), box-shadow .25s;
+      animation: fadeUp .4s var(--delay, 0s) ease both;
+      position: relative;
+      overflow: hidden
+    }
+
+    .client-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow2);
+      border-color: var(--border2)
+    }
+
+    .client-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--accent);
+      border-radius: 12px 12px 0 0
+    }
+
+    .client-card.success::before {
+      background: var(--success)
+    }
+
+    .client-card.warn::before {
+      background: var(--warn)
+    }
+
+    .client-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px
+    }
+
+    .client-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--accent-lt);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px
+    }
+
+    .client-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px
+    }
+
+    .client-sector {
+      font-size: 10px;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      font-weight: 600
+    }
+
+    .client-meta {
+      display: flex;
+      gap: 12px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border)
+    }
+
+    .client-meta-item {
+      font-size: 10px;
+      color: var(--text3)
+    }
+
+    .client-meta-val {
+      font-family: var(--fm);
+      font-weight: 600;
+      color: var(--text2)
+    }
+
+    /* ── Estimate card ─────────────────────── */
+    .estimate-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background .15s
+    }
+
+    .estimate-row:hover {
+      background: var(--bg3)
+    }
+
+    .estimate-row:last-child {
+      border-bottom: none
+    }
+
+    .est-ver {
+      background: var(--accent);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--fm);
+      padding: 3px 8px;
+      border-radius: 6px;
+      flex-shrink: 0
+    }
+
+    .est-info {
+      flex: 1;
+      min-width: 0
+    }
+
+    .est-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text)
+    }
+
+    .est-meta {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--fm);
+      margin-top: 2px
+    }
+
+    .est-cost {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: var(--fm);
+      color: var(--accent);
+      flex-shrink: 0
+    }
+
+    .est-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0
+    }
+
+    /* ── Cost bands ────────────────────────── */
+    .cost-summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 16px
+    }
+
+    .cost-band {
+      background: var(--bg2);
+      padding: 20px;
+      text-align: center
+    }
+
+    .cost-band-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--text3);
+      margin-bottom: 6px
+    }
+
+    .cost-band-value {
+      font-size: 26px;
+      font-weight: 700;
+      font-family: var(--fm);
+      color: var(--text);
+      letter-spacing: -1px
+    }
+
+    .cost-band-sub {
+      font-size: 10px;
+      color: var(--text3);
+      font-family: var(--fm);
+      margin-top: 3px
+    }
+
+    /* ── Progress bar row ──────────────────── */
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 0
+    }
+
+    .bar-row-label {
+      font-size: 11px;
+      color: var(--text2);
+      width: 130px;
+      flex-shrink: 0;
+      font-weight: 500
+    }
+
+    .bar-row-val {
+      font-size: 11px;
+      font-family: var(--fm);
+      color: var(--text);
+      width: 72px;
+      text-align: right;
+      flex-shrink: 0;
+      font-weight: 600
+    }
+
+    /* ── Checkbox ──────────────────────────── */
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      cursor: pointer
+    }
+
+    .checkbox-row input[type=checkbox] {
+      accent-color: var(--accent);
+      width: 14px;
+      height: 14px;
+      cursor: pointer
+    }
+
+    .checkbox-row label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text2);
+      cursor: pointer
+    }
+
+    .checkbox-row label strong {
+      color: var(--text)
+    }
+
+    /* ── Range slider ──────────────────────── */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px
+    }
+
+    .slider-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text2);
+      width: 100px;
+      flex-shrink: 0
+    }
+
+    .slider-row input[type=range] {
+      flex: 1;
+      accent-color: var(--accent);
+      height: 4px
+    }
+
+    .slider-val {
+      font-size: 11px;
+      font-family: var(--fm);
+      font-weight: 600;
+      color: var(--accent);
+      width: 40px;
+      text-align: right
+    }
+
+    /* ── Scrollbar ─────────────────────────── */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg)
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border2);
+      border-radius: 3px
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text4)
+    }
+
+    /* ── Sparkline container ───────────────── */
+    .sparkline {
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 24px
+    }
+
+    /* ── Empty state ───────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text3)
+    }
+
+    .empty-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+      opacity: .4
+    }
+
+    .empty-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text2);
+      margin-bottom: 4px
+    }
+
+    .empty-sub {
+      font-size: 11px
+    }
+
+    /* ── View toggle ───────────────────────── */
+    #view-clients,
+    #view-estimates,
+    #view-estimator,
+    #view-admin {
+      display: none
+    }
+
+    #view-clients.active,
+    #view-estimates.active,
+    #view-estimator.active,
+    #view-admin.active {
+      display: block
+    }
+
+    /* ── Tooltip hint ──────────────────────── */
+    .hint {
+      font-size: 10px;
+      color: var(--text3);
+      margin-top: 4px;
+      font-style: italic
+    }
+
+    /* ── Divider ───────────────────────────── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 20px 0
+    }
+
+    /* ── Tag ───────────────────────────────── */
+    .tag {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      font-family: var(--fm);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-right: 4px
+    }
+
+    .tag.saas {
+      background: var(--accent-lt);
+      color: var(--accent)
+    }
+
+    .tag.onprem {
+      background: var(--success-lt);
+      color: var(--success)
+    }
+
+    /* ── Overflow helpers ──────────────────── */
+    .truncate {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    /* ── Loading shimmer ───────────────────── */
+    .shimmer {
+      background: linear-gradient(90deg, var(--bg3) 25%, var(--bg2) 50%, var(--bg3) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px
+    }
+
+    /* ── Page-specific: login ──────────────── */
+    .login-shell {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      padding: 24px
+    }
+
+    .login-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 32px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: var(--shadow3);
+      animation: fadeUp .5s ease both
+    }
+
+    .login-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px
+    }
+
+    .login-logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--accent);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700
+    }
+
+    .login-logo-text {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -.4px
+    }
+
+    .login-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+      letter-spacing: -.3px
+    }
+
+    .login-sub {
+      font-size: 12px;
+      color: var(--text2);
+      margin-bottom: 24px
+    }
+
+    /* ── Env checkboxes row ────────────────── */
+    .env-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px
+    }
+
+    .env-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border2);
+      background: var(--bg3);
+      cursor: pointer;
+      transition: var(--trans);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text2)
+    }
+
+    .env-chip:hover {
+      border-color: var(--accent);
+      color: var(--text)
+    }
+
+    .env-chip.active {
+      border-color: var(--accent);
+      background: var(--accent-lt);
+      color: var(--accent)
+    }
+
+    .env-chip input {
+      display: none
+    }
+
+    /* ── Responsive ────────────────────────── */
+    @media(max-width:900px) {
+      .shell {
+        grid-template-columns: 1fr;
+        grid-template-rows: 54px auto 1fr
+      }
+
+      .sidebar {
+        display: none
+      }
+
+      .metrics {
+        grid-template-columns: repeat(3, 1fr)
+      }
+
+      .client-grid {
+        grid-template-columns: 1fr 1fr
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ══════════════════════════════════════════
+     LOGIN VIEW
+══════════════════════════════════════════ -->
+  <div id="login-view" class="login-shell">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="login-logo-icon">B</div>
+        <div>
+          <div class="login-logo-text">BusinessNext</div>
+          <div style="font-size:9px;color:var(--text3);letter-spacing:.5px;text-transform:uppercase">Cost Estimator
+          </div>
+        </div>
+      </div>
+      <div class="login-title">Welcome back</div>
+      <div class="login-sub">Sign in to continue to your workspace</div>
+
+      <div class="form-group">
+        <label class="form-label">Email address</label>
+        <input class="form-input" type="email" placeholder="admin@businessnext.com" id="login-email"
+          value="admin@businessnext.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="form-input" type="password" placeholder="••••••••" id="login-pass" value="admin123">
+      </div>
+      <button class="btn-primary" style="width:100%;padding:9px;font-size:13px;margin-top:4px" onclick="doLogin()">Sign
+        in →</button>
+
+      <div
+        style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:10px;color:var(--text3)">Admin: admin@businessnext.com / admin123</div>
+        <div style="font-size:10px;color:var(--text3)">Viewer: view</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+     APP SHELL (post-login)
+══════════════════════════════════════════ -->
+  <div id="app-shell" class="shell" style="display:none">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-logo">
+        <div class="topbar-logo-icon">B</div>
+        <div>
+          <div class="topbar-logo-text">BusinessNext</div>
+          <div class="topbar-logo-sub">Cost Estimator</div>
+        </div>
+      </div>
+
+      <div class="topbar-center">
+        <div class="topbar-search">
+          <span style="font-size:12px">⌕</span>
+          <span style="font-size:11px">Search clients, estimates…</span>
+          <span
+            style="margin-left:auto;font-size:9px;font-family:var(--fm);background:var(--border);padding:2px 5px;border-radius:4px;color:var(--text3)">⌘K</span>
+        </div>
+        <div class="badge info" id="region-badge">☁ us-east-1</div>
+      </div>
+
+      <div class="topbar-right">
+        <button class="topbar-btn" id="theme-btn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+        <div class="dot success" style="margin:0 4px"></div>
+        <div class="badge success">API Live</div>
+        <div class="avatar" id="user-avatar" title="Logged in">AD</div>
+        <button class="btn-secondary" onclick="doLogout()" style="margin-left:4px">Sign out</button>
+      </div>
+    </header>
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="sidebar-client" id="sidebar-client" style="display:none">
+        <div class="sidebar-client-label">Active client</div>
+        <div class="sidebar-client-name" id="sc-name">—</div>
+        <div class="sidebar-client-meta" id="sc-meta">No estimates yet</div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">Dashboard</div>
+        <button class="nav active" onclick="showView('clients',this)" id="nav-clients">
+          <span class="nav-icon">◫</span> Clients
+          <span class="nav-badge" id="clients-count">5</span>
+        </button>
+        <button class="nav" onclick="showView('estimates',this)" id="nav-estimates">
+          <span class="nav-icon">≡</span> Estimates
+        </button>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">Tools</div>
+        <button class="nav" onclick="showView('estimator',this)" id="nav-estimator">
+          <span class="nav-icon">⊞</span> Estimator
+        </button>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-section" id="admin-nav-section" style="display:none">
+        <div class="sidebar-section-label">Administration</div>
+        <button class="nav" onclick="showView('admin',this)" id="nav-admin">
+          <span class="nav-icon">⚙</span> Admin Panel
+        </button>
+      </div>
+
+      <div style="flex:1"></div>
+
+      <div style="padding:12px;border-top:1px solid var(--border)">
+        <div
+          style="font-size:10px;color:var(--text3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">
+          Signed in as</div>
+        <div style="font-size:11px;font-weight:600;color:var(--text)" id="sidebar-user">—</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:4px">
+          <span class="badge accent" id="sidebar-role">viewer</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="content">
+
+        <!-- ════════════════════════════════
+           VIEW: CLIENTS
+      ════════════════════════════════ -->
+        <div id="view-clients" class="active">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Clients</div>
+              <div class="page-subtitle">Manage client accounts and their cost estimates</div>
+            </div>
+            <div class="page-actions">
+              <button class="btn-secondary" onclick="alert('Import via CSV coming soon')">↑ Import</button>
+              <button class="btn-primary" onclick="showAddClientModal()">+ New Client</button>
+            </div>
+          </div>
+
+          <!-- Summary metrics -->
+          <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
+            <div class="metric-card accent" style="--delay:.05s" onclick="bounce(this)">
+              <div class="metric-label">Total Clients</div>
+              <div class="metric-value" id="mc-total">5</div>
+              <div class="metric-delta up">↑ 1 this month</div>
+            </div>
+            <div class="metric-card success" style="--delay:.10s" onclick="bounce(this)">
+              <div class="metric-label">With Estimates</div>
+              <div class="metric-value" id="mc-with-est">4</div>
+              <div class="metric-delta flat">80% of clients</div>
+            </div>
+            <div class="metric-card warn" style="--delay:.15s" onclick="bounce(this)">
+              <div class="metric-label">Avg Monthly Cost</div>
+              <div class="metric-value" id="mc-avg">$48K</div>
+              <div class="metric-delta up">↑ 4% vs last qtr</div>
+            </div>
+            <div class="metric-card purple" style="--delay:.20s" onclick="bounce(this)">
+              <div class="metric-label">Total 5-Yr Value</div>
+              <div class="metric-value">$12M</div>
+              <div class="metric-delta up">Across all clients</div>
+            </div>
+          </div>
+
+          <!-- Add client inline form -->
+          <div id="add-client-form" class="panel"
+            style="display:none;border-color:var(--accent);animation:slideDown .3s ease both">
+            <div class="panel-header">
+              <span class="dot accent"></span>
+              <span class="panel-title">Add New Client</span>
+              <button class="btn-secondary" onclick="hideAddClientModal()">✕ Cancel</button>
+            </div>
+            <div class="panel-body">
+              <div class="form-row">
+                <div class="form-group" style="margin-bottom:0">
+                  <label class="form-label">Client Name</label>
+                  <input class="form-input" id="new-client-name" placeholder="e.g. HDFC Bank">
+                </div>
+                <div class="form-group" style="margin-bottom:0">
+                  <label class="form-label">Sector</label>
+                  <select class="form-select" id="new-client-sector">
+                    <option>Banking</option>
+                    <option>Insurance</option>
+                    <option>Finance</option>
+                    <option>Retail</option>
+                    <option>Healthcare</option>
+                  </select>
+                </div>
+              </div>
+              <button class="btn-primary" style="margin-top:14px" onclick="addClient()">Create Client →</button>
+            </div>
+          </div>
+
+          <!-- Client grid -->
+          <div class="client-grid" id="client-grid"></div>
+        </div>
+
+        <!-- ════════════════════════════════
+           VIEW: ESTIMATES
+      ════════════════════════════════ -->
+        <div id="view-estimates">
+          <div class="page-header">
+            <div>
+              <div id="est-page-title" class="page-title">Estimates</div>
+              <div id="est-page-sub" class="page-subtitle">All versioned cost estimates for this client</div>
+            </div>
+            <div class="page-actions">
+              <button class="btn-secondary" onclick="showView('clients',document.getElementById('nav-clients'))">← All
+                Clients</button>
+              <button class="btn-primary"
+                onclick="showView('estimator',document.getElementById('nav-estimator'));setEstimatorClient()">+ New
+                Estimate</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <span class="dot accent"></span>
+              <span class="panel-title">Estimate History</span>
+              <span class="badge accent" id="est-count-badge">0 estimates</span>
+            </div>
+            <div id="est-list"></div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════
+           VIEW: ESTIMATOR
+      ════════════════════════════════ -->
+        <div id="view-estimator">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Cost Estimator</div>
+              <div class="page-subtitle" id="est-client-label">Configure inputs and generate pricing</div>
+            </div>
+            <div class="page-actions">
+              <button class="btn-secondary" onclick="showView('clients',document.getElementById('nav-clients'))">←
+                Clients</button>
+            </div>
+          </div>
+
+          <!-- Alert banner -->
+          <div class="alert-banner warn" id="est-warning" style="display:none">
+            <span style="font-size:16px">⚠</span>
+            <span style="font-size:12px;font-weight:500" id="est-warning-text">Please fill in all required fields before
+              generating.</span>
+          </div>
+
+          <div class="grid2" style="margin-bottom:0">
+            <!-- Left: configuration -->
+            <div>
+              <!-- Section: Project Info -->
+              <div class="panel">
+                <div class="panel-header">
+                  <span class="dot accent"></span>
+                  <span class="panel-title">Project Information</span>
+                </div>
+                <div class="panel-body">
+                  <div class="form-row3">
+                    <div class="form-group" style="margin-bottom:0">
+                      <label class="form-label">Customer / Bank</label>
+                      <input class="form-input" id="est-customer" placeholder="e.g. HDFC Bank">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                      <label class="form-label">Estimate Date</label>
+                      <input class="form-input" type="date" id="est-date">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                      <label class="form-label">Forecast Years</label>
+                      <select class="form-select" id="est-years">
+                        <option value="3">3 years</option>
+                        <option value="5" selected>5 years</option>
+                        <option value="7">7 years</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section: Client Type -->
+              <div class="panel">
+                <div class="panel-header">
+                  <span class="dot accent"></span>
+                  <span class="panel-title">Client Type</span>
+                  <span class="badge info">Required</span>
+                </div>
+                <div class="panel-body" style="padding-top:12px">
+                  <div class="mode-btns">
+                    <div class="mode-btn active" id="mode-saas" onclick="setMode('saas')">
+                      <div class="mode-btn-icon">☁</div>
+                      <span class="mode-btn-label">SaaS Client</span>
+                      <span class="mode-btn-sub">BusinessNext Hosted · PostgreSQL</span>
+                    </div>
+                    <div class="mode-btn" id="mode-onprem" onclick="setMode('onprem')">
+                      <div class="mode-btn-icon">🏢</div>
+                      <span class="mode-btn-label">On-Premise</span>
+                      <span class="mode-btn-sub">Client Hosted · Any DB</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section: DB & Environments -->
+              <div class="panel">
+                <div class="panel-header">
+                  <span class="dot accent"></span>
+                  <span class="panel-title">Database & Environments</span>
+                </div>
+                <div class="panel-body">
+                  <div id="db-selector" style="margin-bottom:14px;display:none">
+                    <label class="form-label">Database Type</label>
+                    <select class="form-select" id="est-db" style="max-width:260px">
+                      <option>PostgreSQL</option>
+                      <option>SQL Server</option>
+                      <option>Oracle</option>
+                    </select>
+                  </div>
+                  <div class="section-label">Environments to include</div>
+                  <div class="env-row" id="env-chips">
+                    <label class="env-chip active" onclick="toggleEnv(this)">
+                      <input type="checkbox" checked> 📦 Pre-Prod
+                    </label>
+                    <label class="env-chip active" onclick="toggleEnv(this)">
+                      <input type="checkbox" checked> 🧪 SIT
+                    </label>
+                    <label class="env-chip active" onclick="toggleEnv(this)">
+                      <input type="checkbox" checked> ✅ UAT
+                    </label>
+                    <label class="env-chip active" onclick="toggleEnv(this)">
+                      <input type="checkbox" checked> 🛡 DR
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section: Region -->
+              <div class="panel">
+                <div class="panel-header">
+                  <span class="dot accent"></span>
+                  <span class="panel-title">Cloud Region</span>
+                </div>
+                <div class="panel-body">
+                  <div class="form-row">
+                    <div class="form-group" style="margin-bottom:0">
+                      <label class="form-label">AWS Region</label>
+                      <select class="form-select" id="est-aws-region" onchange="updateRegionBadge()">
+                        <option value="us-east-1">us-east-1 — US East (N. Virginia)</option>
+                        <option value="us-west-2">us-west-2 — US West (Oregon)</option>
+                        <option value="eu-west-1">eu-west-1 — Europe (Ireland)</option>
+                        <option value="ap-south-1">ap-south-1 — Asia Pacific (Mumbai)</option>
+                        <option value="ap-southeast-1">ap-southeast-1 — Asia Pacific (Singapore)</option>
+                        <option value="me-south-1">me-south-1 — Middle East (Bahrain)</option>
+                      </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                      <label class="form-label">GCP Region</label>
+                      <select class="form-select" id="est-gcp-region">
+                        <option value="us-central1">us-central1 — US Central (Iowa)</option>
+                        <option value="europe-west1">europe-west1 — Europe (Belgium)</option>
+                        <option value="asia-south1">asia-south1 — Asia Pacific (Mumbai)</option>
+                        <option value="asia-southeast1">asia-southeast1 — Asia Pacific (Singapore)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section: Year 1 Volumes -->
+              <div class="panel">
+                <div class="panel-header">
+                  <span class="dot accent"></span>
+                  <span class="panel-title">Year 1 Base Volumes</span>
+                </div>
+                <div class="panel-body">
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label class="form-label">Total Named Users</label>
+                      <input class="form-input" type="number" id="v-named" value="15500">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Concurrent Mobile Users</label>
+                      <input class="form-input" type="number" id="v-mobile" value="4050">
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label class="form-label">Total Customers</label>
+                      <input class="form-input" type="number" id="v-customers" value="25786541">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Number of Leads</label>
+                      <input class="form-input" type="number" id="v-leads" value="10700000">
+                    </div>
+                  </div>
+                  <div class="form-group" style="margin-bottom:0">
+                    <label class="form-label">Service Requests / Cases</label>
+                    <input class="form-input" type="number" id="v-cases" value="20000">
+                  </div>
+
+                  <div class="divider" style="margin:14px 0"></div>
+                  <div class="section-label">YoY Growth Rates</div>
+
+                  <div class="slider-row">
+                    <div class="slider-label">Named Users</div>
+                    <input type="range" min="0" max="25" step="1" value="5"
+                      oninput="this.nextElementSibling.textContent=this.value+'%'">
+                    <div class="slider-val">5%</div>
+                  </div>
+                  <div class="slider-row">
+                    <div class="slider-label">Customers</div>
+                    <input type="range" min="0" max="25" step="1" value="10"
+                      oninput="this.nextElementSibling.textContent=this.value+'%'">
+                    <div class="slider-val">10%</div>
+                  </div>
+                  <div class="slider-row">
+                    <div class="slider-label">Leads</div>
+                    <input type="range" min="0" max="25" step="1" value="10"
+                      oninput="this.nextElementSibling.textContent=this.value+'%'">
+                    <div class="slider-val">10%</div>
+                  </div>
+                  <div class="slider-row">
+                    <div class="slider-label">Cases</div>
+                    <input type="range" min="0" max="25" step="1" value="5"
+                      oninput="this.nextElementSibling.textContent=this.value+'%'">
+                    <div class="slider-val">5%</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- One-Time Costs -->
+              <div class="panel">
+                <div class="panel-header">
+                  <span class="dot warn"></span>
+                  <span class="panel-title">One-Time Costs (Year 1)</span>
+                  <span class="badge warn">Included in PUPM</span>
+                </div>
+                <div class="panel-body">
+                  <div class="form-row3">
+                    <div class="form-group" style="margin-bottom:0">
+                      <label class="form-label">Performance Testing</label>
+                      <input class="form-input" type="number" id="ot-perf" value="5000" oninput="updateOTTotal()">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                      <label class="form-label">Migration / Bootup</label>
+                      <input class="form-input" type="number" id="ot-migr" value="5000" oninput="updateOTTotal()">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                      <label class="form-label">Managed Svc Setup</label>
+                      <input class="form-input" type="number" id="ot-ms" value="1000" oninput="updateOTTotal()">
+                    </div>
+                  </div>
+                  <div style="margin-top:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;
+                     display:flex;align-items:center;justify-content:space-between">
+                    <span style="font-size:11px;color:var(--text2);font-weight:600">Total One-Time</span>
+                    <span style="font-size:16px;font-weight:700;font-family:var(--fm);color:var(--warn)"
+                      id="ot-total">$11,000</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Generate button -->
+              <button class="btn-primary" style="width:100%;padding:12px;font-size:13px;letter-spacing:.2px"
+                onclick="generateEstimate()">
+                🚀 Generate Cloud Sizing + Full Pricing
+              </button>
+            </div>
+
+            <!-- Right: results sidebar -->
+            <div id="results-sidebar">
+              <div class="panel" style="border:1px dashed var(--border2)" id="results-empty">
+                <div class="panel-body">
+                  <div class="empty-state">
+                    <div class="empty-icon">◈</div>
+                    <div class="empty-title">No results yet</div>
+                    <div class="empty-sub">Configure inputs and click Generate to see pricing</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Results (hidden until generated) -->
+              <div id="results-content" style="display:none;animation:slideDown .3s ease both">
+
+                <!-- Cost summary bands -->
+                <div class="cost-summary" style="margin-bottom:16px">
+                  <div class="cost-band">
+                    <div class="cost-band-label">Monthly</div>
+                    <div class="cost-band-value" id="r-monthly">$0</div>
+                    <div class="cost-band-sub">Production</div>
+                  </div>
+                  <div class="cost-band">
+                    <div class="cost-band-label">Annual Y1</div>
+                    <div class="cost-band-value" id="r-annual">$0</div>
+                    <div class="cost-band-sub">with environments</div>
+                  </div>
+                  <div class="cost-band">
+                    <div class="cost-band-label">5-Year Total</div>
+                    <div class="cost-band-value" id="r-5yr">$0</div>
+                    <div class="cost-band-sub">4% inflation/yr</div>
+                  </div>
+                </div>
+
+                <!-- Metrics -->
+                <div class="panel">
+                  <div class="panel-header">
+                    <span class="dot success"></span>
+                    <span class="panel-title">Infrastructure Sizing</span>
+                    <span class="badge success">Computed</span>
+                  </div>
+                  <div class="panel-body" style="padding:8px 0">
+                    <div class="feed-item">
+                      <div class="feed-icon" style="background:var(--accent-lt);color:var(--accent)">⊞</div>
+                      <div>
+                        <div style="font-size:12px;font-weight:600;color:var(--text)">Worker Nodes</div>
+                        <div style="font-size:11px;color:var(--text3);font-family:var(--fm)" id="r-nodes">—</div>
+                      </div>
+                    </div>
+                    <div class="feed-item">
+                      <div class="feed-icon" style="background:var(--info-lt);color:var(--info)">⚡</div>
+                      <div>
+                        <div style="font-size:12px;font-weight:600;color:var(--text)">Total vCPUs</div>
+                        <div style="font-size:11px;color:var(--text3);font-family:var(--fm)" id="r-vcpus">—</div>
+                      </div>
+                    </div>
+                    <div class="feed-item">
+                      <div class="feed-icon" style="background:var(--purple-lt);color:var(--purple)">▦</div>
+                      <div>
+                        <div style="font-size:12px;font-weight:600;color:var(--text)">Total RAM</div>
+                        <div style="font-size:11px;color:var(--text3);font-family:var(--fm)" id="r-ram">—</div>
+                      </div>
+                    </div>
+                    <div class="feed-item">
+                      <div class="feed-icon" style="background:var(--warn-lt);color:var(--warn)">◈</div>
+                      <div>
+                        <div style="font-size:12px;font-weight:600;color:var(--text)">Data Size</div>
+                        <div style="font-size:11px;color:var(--text3);font-family:var(--fm)" id="r-data">—</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Category spend -->
+                <div class="panel">
+                  <div class="panel-header">
+                    <span class="dot info"></span>
+                    <span class="panel-title">Spend by Category</span>
+                  </div>
+                  <div class="panel-body" id="r-categories"></div>
+                </div>
+
+                <!-- DB recommendation -->
+                <div class="panel">
+                  <div class="panel-header">
+                    <span class="dot success"></span>
+                    <span class="panel-title">DB Recommendation</span>
+                  </div>
+                  <div class="panel-body">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                      <span class="badge success" id="r-db-badge">PostgreSQL</span>
+                      <span style="font-size:11px;color:var(--text2)" id="r-db-hosting">Self-Hosted EC2</span>
+                    </div>
+                    <div style="font-size:11px;color:var(--text3);line-height:1.5" id="r-db-note">—</div>
+                    <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;
+                       padding:8px 10px;background:var(--bg3);border-radius:8px">
+                      <span
+                        style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text3)">Est.
+                        Monthly</span>
+                      <span style="font-size:14px;font-weight:700;font-family:var(--fm);color:var(--success)"
+                        id="r-db-monthly">—</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- PUPM -->
+                <div class="panel" id="r-pupm-panel">
+                  <div class="panel-header">
+                    <span class="dot purple"></span>
+                    <span class="panel-title">PUPM Analysis</span>
+                    <span class="badge purple">Year 1</span>
+                  </div>
+                  <div class="panel-body">
+                    <div style="text-align:center;padding:12px 0">
+                      <div
+                        style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:6px">
+                        Price Per User Per Month</div>
+                      <div style="font-size:36px;font-weight:700;font-family:var(--fm);color:var(--purple)" id="r-pupm">
+                        —</div>
+                      <div style="font-size:10px;color:var(--text3);font-family:var(--fm);margin-top:4px" id="r-users">—
+                        named users</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Download actions -->
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn-secondary" style="flex:1" onclick="alert('Excel export would download here')">📊
+                    Cloud Sizing XLSX</button>
+                  <button class="btn-secondary" style="flex:1"
+                    onclick="alert('Pricing forecast would download here')">💰 Pricing XLSX</button>
+                  <button class="btn-primary" style="flex:1" onclick="alert('PDF report would download here')">📄 PDF
+                    Report</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════
+           VIEW: ADMIN
+      ════════════════════════════════ -->
+        <div id="view-admin">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Admin Panel</div>
+              <div class="page-subtitle">Manage users and role-based access control</div>
+            </div>
+            <div class="page-actions">
+              <button class="btn-secondary" onclick="showView('clients',document.getElementById('nav-clients'))">←
+                Clients</button>
+            </div>
+          </div>
+
+          <div class="grid22" style="align-items:start">
+            <!-- User list -->
+            <div class="panel">
+              <div class="panel-header">
+                <span class="dot accent"></span>
+                <span class="panel-title">Users</span>
+                <span class="badge accent" id="user-count-badge">3 users</span>
+              </div>
+              <table class="data-table" id="user-table">
+                <thead>
+                  <tr>
+                    <th>Name / Email</th>
+                    <th style="width:80px">Role</th>
+                    <th style="width:80px">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="user-tbody"></tbody>
+              </table>
+            </div>
+
+            <!-- Create user -->
+            <div class="panel">
+              <div class="panel-header">
+                <span class="dot success"></span>
+                <span class="panel-title">Create New User</span>
+              </div>
+              <div class="panel-body">
+                <div class="form-group">
+                  <label class="form-label">Full Name</label>
+                  <input class="form-input" id="nu-name" placeholder="Jane Smith">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Email</label>
+                  <input class="form-input" type="email" id="nu-email" placeholder="jane@bank.com">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Password</label>
+                  <input class="form-input" type="password" id="nu-pass" placeholder="••••••••">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Role</label>
+                  <select class="form-select" id="nu-role">
+                    <option value="viewer">Viewer — Read only</option>
+                    <option value="estimator">Estimator — Create estimates</option>
+                    <option value="admin">Admin — Full access</option>
+                  </select>
+                </div>
+                <button class="btn-primary" style="width:100%;padding:9px" onclick="createUser()">Create User →</button>
+
+                <div style="margin-top:20px;padding:12px;background:var(--bg3);border-radius:8px">
+                  <div class="section-label" style="border-bottom:none;padding-bottom:4px">Role Permissions</div>
+                  <div style="font-size:11px;color:var(--text2);line-height:1.8">
+                    <span class="badge danger">Admin</span> Full access · Create, edit, delete<br>
+                    <span class="badge accent">Estimator</span> Create clients and estimates<br>
+                    <span class="badge success">Viewer</span> Read-only access to all estimates
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /content -->
+    </main>
+  </div><!-- /shell -->
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────────────
+    let isDark = false;
+    let currentUser = null;
+    let currentClient = null;
+    let currentMode = 'saas';
+
+    const CLIENTS = [
+      { id: 1, name: 'SBI Bank', sector: 'Banking', icon: '🏦', estimates: 3, lastEst: '2026-03-15', monthly: 52400, color: 'accent' },
+      { id: 2, name: 'HDFC Bank', sector: 'Banking', icon: '🏦', estimates: 2, lastEst: '2026-04-01', monthly: 38700, color: 'success' },
+      { id: 3, name: 'ICICI Bank', sector: 'Banking', icon: '🏦', estimates: 1, lastEst: '2026-02-20', monthly: 61200, color: 'accent' },
+      { id: 4, name: 'Bajaj Allianz', sector: 'Insurance', icon: '🛡️', estimates: 1, lastEst: '2026-01-10', monthly: 29800, color: 'warn' },
+      { id: 5, name: 'Emirates NBD', sector: 'Banking', icon: '🏦', estimates: 0, lastEst: null, monthly: 0, color: 'accent' },
+    ];
+
+    const ESTIMATES = {
+      1: [
+        { id: 101, ver: 3, date: '2026-03-15', mode: 'saas', db: 'PostgreSQL', monthly: 52400, annual: 628800, five_yr: 3421776 },
+        { id: 102, ver: 2, date: '2026-02-10', mode: 'saas', db: 'PostgreSQL', monthly: 49200, annual: 590400, five_yr: 3213196 },
+        { id: 103, ver: 1, date: '2026-01-05', mode: 'saas', db: 'PostgreSQL', monthly: 44100, annual: 529200, five_yr: 2879827 },
+      ],
+      2: [
+        { id: 201, ver: 2, date: '2026-04-01', mode: 'saas', db: 'PostgreSQL', monthly: 38700, annual: 464400, five_yr: 2527440 },
+        { id: 202, ver: 1, date: '2026-02-28', mode: 'onprem', db: 'SQL Server', monthly: 0, annual: 0, five_yr: 0 },
+      ],
+      3: [{ id: 301, ver: 1, date: '2026-02-20', mode: 'saas', db: 'PostgreSQL', monthly: 61200, annual: 734400, five_yr: 3997248 }],
+      4: [{ id: 401, ver: 1, date: '2026-01-10', mode: 'saas', db: 'PostgreSQL', monthly: 29800, annual: 357600, five_yr: 1946121 }],
+      5: [],
+    };
+
+    const USERS_DB = [
+      { id: 1, name: 'System Admin', email: 'admin@businessnext.com', role: 'admin', joined: '2025-01-01' },
+      { id: 2, name: 'Alice Kim', email: 'alice@bank.com', role: 'estimator', joined: '2025-06-15' },
+      { id: 3, name: 'Bob Reader', email: 'bob@bank.com', role: 'viewer', joined: '2025-09-20' },
+    ];
+
+    // ── Auth ────────────────────────────────────────────────────────────────
+    function doLogin() {
+      const email = document.getElementById('login-email').value.trim();
+      const pass = document.getElementById('login-pass').value.trim();
+      const user = {
+        email, role: email.includes('admin') ? 'admin' : email.includes('est') ? 'estimator' : 'viewer',
+        name: email.split('@')[0]
+      };
+      if (!email || !pass) { alert('Please enter email and password'); return; }
+      currentUser = user;
+      document.getElementById('login-view').style.display = 'none';
+      document.getElementById('app-shell').style.display = 'grid';
+      document.getElementById('user-avatar').textContent = user.name.slice(0, 2).toUpperCase();
+      document.getElementById('sidebar-user').textContent = user.email;
+      document.getElementById('sidebar-role').textContent = user.role;
+      document.getElementById('sidebar-role').className = 'badge ' + (user.role === 'admin' ? 'danger' : user.role === 'estimator' ? 'accent' : 'success');
+      if (user.role === 'admin') document.getElementById('admin-nav-section').style.display = 'block';
+      renderClients();
+      renderUsers();
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('est-date').value = today;
+    }
+
+    function doLogout() {
+      currentUser = null;
+      document.getElementById('app-shell').style.display = 'none';
+      document.getElementById('login-view').style.display = 'flex';
+    }
+
+    // ── Theme ───────────────────────────────────────────────────────────────
+    function toggleTheme() {
+      isDark = !isDark;
+      document.body.classList.toggle('dark', isDark);
+      const btn = document.getElementById('theme-btn');
+      btn.textContent = isDark ? '☀' : '🌙';
+      btn.classList.add('spinning');
+      setTimeout(() => btn.classList.remove('spinning'), 400);
+    }
+
+    // ── Navigation ──────────────────────────────────────────────────────────
+    function showView(id, navBtn) {
+      document.querySelectorAll('[id^="view-"]').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.nav').forEach(n => n.classList.remove('active'));
+      document.getElementById('view-' + id).classList.add('active');
+      if (navBtn) navBtn.classList.add('active');
+      window.scrollTo(0, 0);
+    }
+
+    // ── Clients ─────────────────────────────────────────────────────────────
+    function renderClients() {
+      const grid = document.getElementById('client-grid');
+      grid.innerHTML = CLIENTS.map((c, i) => `
+    <div class="client-card ${c.color}" style="--delay:${.05 + i * .07}s" onclick="openClient(${c.id})" onmousedown="bounce(this)">
+      <div class="client-card-top">
+        <div class="client-icon">${c.icon}</div>
+        <div class="badge ${c.estimates > 0 ? 'success' : 'info'}">${c.estimates} est.</div>
+      </div>
+      <div class="client-name">${c.name}</div>
+      <div class="client-sector">${c.sector}</div>
+      <div class="client-meta">
+        <div class="client-meta-item">Last estimate: <span class="client-meta-val">${c.lastEst || '—'}</span></div>
+        ${c.monthly ? `<div class="client-meta-item">Monthly: <span class="client-meta-val">$${(c.monthly / 1000).toFixed(0)}K</span></div>` : ''}
+      </div>
+    </div>
+  `).join('');
+      document.getElementById('mc-total').textContent = CLIENTS.length;
+      document.getElementById('mc-with-est').textContent = CLIENTS.filter(c => c.estimates > 0).length;
+    }
+
+    function openClient(id) {
+      currentClient = CLIENTS.find(c => c.id === id);
+      document.getElementById('est-page-title').textContent = currentClient.name + ' — Estimates';
+      document.getElementById('est-page-sub').textContent = currentClient.sector + ' · All versioned cost estimates';
+      document.getElementById('sc-name').textContent = currentClient.name;
+      document.getElementById('sc-meta').textContent = (ESTIMATES[id] || []).length + ' estimate(s)';
+      document.getElementById('sidebar-client').style.display = 'block';
+      renderEstimates(id);
+      showView('estimates', document.getElementById('nav-estimates'));
+    }
+
+    function renderEstimates(cid) {
+      const ests = ESTIMATES[cid] || [];
+      const list = document.getElementById('est-list');
+      document.getElementById('est-count-badge').textContent = ests.length + ' estimate' + (ests.length !== 1 ? 's' : '');
+      if (!ests.length) {
+        list.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No estimates yet</div><div class="empty-sub">Click New Estimate to create the first one.</div></div>`;
+        return;
+      }
+      list.innerHTML = ests.map(e => `
+    <div class="estimate-row">
+      <div class="est-ver">v${e.ver}</div>
+      <div class="est-info">
+        <div class="est-name">${e.date} · ${e.db}</div>
+        <div class="est-meta"><span class="tag ${e.mode}">${e.mode.toUpperCase()}</span>${e.monthly ? '$' + e.monthly.toLocaleString() + '/mo' : ''}</div>
+      </div>
+      ${e.monthly ? `<div class="est-cost">$${(e.annual / 1000).toFixed(0)}K/yr</div>` : '<div class="est-cost" style="color:var(--text3)">Sizing only</div>'}
+      <div class="est-actions">
+        <button class="btn-secondary" onclick="loadEstimate(${e.id})">Load</button>
+        <button class="btn-secondary" onclick="alert('PDF report')" title="Download PDF">↓</button>
+      </div>
+    </div>
+  `).join('');
+    }
+
+    function loadEstimate(id) {
+      showView('estimator', document.getElementById('nav-estimator'));
+      document.getElementById('est-customer').value = currentClient.name;
+      setTimeout(generateEstimate, 300);
+    }
+
+    // ── Add client ──────────────────────────────────────────────────────────
+    function showAddClientModal() { document.getElementById('add-client-form').style.display = 'block'; }
+    function hideAddClientModal() { document.getElementById('add-client-form').style.display = 'none'; }
+    function addClient() {
+      const name = document.getElementById('new-client-name').value.trim();
+      const sector = document.getElementById('new-client-sector').value;
+      if (!name) { alert('Please enter a client name'); return; }
+      const newClient = { id: Date.now(), name, sector, icon: '🏢', estimates: 0, lastEst: null, monthly: 0, color: 'accent' };
+      CLIENTS.push(newClient);
+      ESTIMATES[newClient.id] = [];
+      hideAddClientModal();
+      document.getElementById('new-client-name').value = '';
+      renderClients();
+    }
+
+    // ── Estimator ───────────────────────────────────────────────────────────
+    function setMode(m) {
+      currentMode = m;
+      document.getElementById('mode-saas').classList.toggle('active', m === 'saas');
+      document.getElementById('mode-onprem').classList.toggle('active', m === 'onprem');
+      document.getElementById('db-selector').style.display = m === 'onprem' ? 'block' : 'none';
+    }
+
+    function setEstimatorClient() {
+      if (currentClient) document.getElementById('est-customer').value = currentClient.name;
+      document.getElementById('est-client-label').textContent = currentClient ?
+        'Creating estimate for: ' + currentClient.name : 'Configure inputs and generate pricing';
+    }
+
+    function toggleEnv(chip) {
+      chip.classList.toggle('active');
+    }
+
+    function updateOTTotal() {
+      const p = +document.getElementById('ot-perf').value || 0;
+      const m = +document.getElementById('ot-migr').value || 0;
+      const s = +document.getElementById('ot-ms').value || 0;
+      document.getElementById('ot-total').textContent = '$' + (p + m + s).toLocaleString();
+    }
+
+    function updateRegionBadge() {
+      const r = document.getElementById('est-aws-region').value;
+      document.getElementById('region-badge').textContent = '☁ ' + r;
+    }
+
+    function generateEstimate() {
+      const customer = document.getElementById('est-customer').value.trim();
+      if (!customer) {
+        const w = document.getElementById('est-warning');
+        w.style.display = 'flex';
+        document.getElementById('est-warning-text').textContent = 'Please enter a Customer / Bank Name above.';
+        setTimeout(() => w.style.display = 'none', 3500);
+        return;
+      }
+
+      // Simulate computed values
+      const named = +(document.getElementById('v-named').value) || 15500;
+      const nodes = Math.ceil(named / 1700);
+      const vcpus = nodes * 16;
+      const ram = nodes * 32;
+      const dataGb = Math.round(named * 0.9);
+      const baseMonthly = Math.round(nodes * 3800 + dataGb * 0.04 + 4200);
+      const annual = baseMonthly * 12;
+      const fiveYr = Math.round(annual * 5.416);
+      const pupm = +(baseMonthly / 12 / named * 0.89).toFixed(4);
+
+      document.getElementById('results-empty').style.display = 'none';
+      const rc = document.getElementById('results-content');
+      rc.style.display = 'block';
+      rc.style.animation = 'none';
+      void rc.offsetWidth;
+      rc.style.animation = 'slideDown .3s ease both';
+
+      document.getElementById('r-monthly').textContent = '$' + baseMonthly.toLocaleString();
+      document.getElementById('r-annual').textContent = '$' + annual.toLocaleString();
+      document.getElementById('r-5yr').textContent = '$' + fiveYr.toLocaleString();
+      document.getElementById('r-nodes').textContent = nodes + ' nodes · ' + vcpus + ' vCPUs';
+      document.getElementById('r-vcpus').textContent = vcpus + ' vCPUs total';
+      document.getElementById('r-ram').textContent = ram + ' GB';
+      document.getElementById('r-data').textContent = dataGb.toLocaleString() + ' GB';
+      document.getElementById('r-pupm').textContent = '$' + pupm.toFixed(4);
+      document.getElementById('r-users').textContent = named.toLocaleString() + ' named users';
+
+      const dbType = currentMode === 'onprem' ? document.getElementById('est-db').value : 'PostgreSQL';
+      document.getElementById('r-db-badge').textContent = dbType;
+      document.getElementById('r-db-badge').className = 'badge ' + (dbType === 'PostgreSQL' ? 'success' : 'warn');
+      document.getElementById('r-db-hosting').textContent = dbType === 'PostgreSQL' ? 'Self-Hosted EC2 · Patroni HA' : 'AWS RDS Managed';
+      document.getElementById('r-db-note').textContent = dbType === 'PostgreSQL' ?
+        'Open-source — no licensing cost. HA via Patroni + etcd on EC2.' :
+        'Commercial license — RDS handles patching, backups, and HA automatically.';
+      document.getElementById('r-db-monthly').textContent = dbType === 'PostgreSQL' ?
+        '$' + Math.round(baseMonthly * 0.28).toLocaleString() + '/mo' :
+        '$' + Math.round(baseMonthly * 0.38).toLocaleString() + '/mo';
+
+      const cats = [
+        { label: 'Kubernetes Cluster', pct: 42, color: 'var(--accent)' },
+        { label: 'PGSQL Database', pct: 28, color: 'var(--info)' },
+        { label: 'Infrastructure', pct: 15, color: 'var(--purple)' },
+        { label: 'Storage (S3)', pct: 8, color: 'var(--warn)' },
+        { label: 'Operations', pct: 7, color: 'var(--success)' },
+      ];
+      document.getElementById('r-categories').innerHTML = cats.map(c => `
+    <div class="bar-row">
+      <div class="bar-row-label" style="font-size:10px">${c.label}</div>
+      <div class="bar-track"><div class="bar-fill" style="--w:${c.pct}%;background:${c.color}"></div></div>
+      <div class="bar-row-val" style="font-size:10px">$${Math.round(baseMonthly * c.pct / 100).toLocaleString()}</div>
+    </div>
+  `).join('');
+    }
+
+    // ── Admin ───────────────────────────────────────────────────────────────
+    function renderUsers() {
+      const tbody = document.getElementById('user-tbody');
+      document.getElementById('user-count-badge').textContent = USERS_DB.length + ' users';
+      tbody.innerHTML = USERS_DB.map(u => `
+    <tr>
+      <td>
+        <div style="font-weight:600;color:var(--text)">${u.name}</div>
+        <div class="mono" style="font-size:10px">${u.email}</div>
+      </td>
+      <td><span class="badge ${u.role === 'admin' ? 'danger' : u.role === 'estimator' ? 'accent' : 'success'}">${u.role}</span></td>
+      <td><button class="btn-danger" style="font-size:9px;padding:3px 8px" onclick="deleteUser(${u.id})">Remove</button></td>
+    </tr>
+  `).join('');
+    }
+
+    function createUser() {
+      const name = document.getElementById('nu-name').value.trim();
+      const email = document.getElementById('nu-email').value.trim();
+      const role = document.getElementById('nu-role').value;
+      if (!name || !email) { alert('Name and email required'); return; }
+      USERS_DB.push({ id: Date.now(), name, email, role, joined: new Date().toISOString().split('T')[0] });
+      document.getElementById('nu-name').value = '';
+      document.getElementById('nu-email').value = '';
+      document.getElementById('nu-pass').value = '';
+      renderUsers();
+    }
+
+    function deleteUser(id) {
+      if (!confirm('Remove this user?')) return;
+      const i = USERS_DB.findIndex(u => u.id === id);
+      if (i > -1) USERS_DB.splice(i, 1);
+      renderUsers();
+    }
+
+    // ── Bounce interaction ──────────────────────────────────────────────────
+    function bounce(el) {
+      el.style.transform = 'scale(.97)';
+      setTimeout(() => el.style.transform = '', 150);
+    }
+
+    // ── Init ────────────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      updateOTTotal();
+      const today = new Date().toISOString().split('T')[0];
+      const dateEl = document.getElementById('est-date');
+      if (dateEl) dateEl.value = today;
+    });
+  </script>
+</body>
+
+</html>

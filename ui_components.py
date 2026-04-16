@@ -19,15 +19,17 @@ import pandas as pd
 import streamlit as st
 
 def _metric(col, label, value):
-    """Themed metric card replacing st.metric()"""
+    """Themed metric card - matches bn-metric-card from businessnext_ui.html"""
     col.markdown(f"""
-    <div style="background:var(--surface);border:1.5px solid var(--border);
-                border-top:3px solid var(--accent);border-radius:12px;
-                padding:1rem 1.25rem;box-shadow:var(--shadow);
+    <div style="background:var(--bg2);border:1px solid var(--border);
+                border-bottom:3px solid var(--accent);border-radius:10px;
+                padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06);
                 margin-bottom:0.5rem;">
-      <div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;
-                  letter-spacing:0.08em;color:var(--text2);margin-bottom:0.4rem;">{label}</div>
-      <div style="font-size:1.5rem;font-weight:800;color:var(--text);line-height:1;">{value}</div>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+                  letter-spacing:0.06em;color:var(--text3);margin-bottom:6px;
+                  font-family:var(--ff)">{label}</div>
+      <div style="font-size:22px;font-weight:800;color:var(--text);line-height:1;
+                  font-family:var(--ff)">{value}</div>
     </div>""", unsafe_allow_html=True)
 
 
@@ -244,14 +246,14 @@ def render_pricing_results(pricing: dict, updated_file: str = None):
         (k3, "3-Year (USD)",   "🗓️", f"${pricing['total_3year_usd']:,.2f}"),
     ]:
         col.markdown(f"""
-        <div style="background:var(--surface);border:1.5px solid var(--border);
-                    border-top:3px solid var(--accent);border-radius:12px;
-                    padding:1.2rem 1.5rem;box-shadow:var(--shadow);">
-          <div style="font-size:0.75rem;font-weight:600;text-transform:uppercase;
-                      letter-spacing:0.08em;color:var(--text2);margin-bottom:0.5rem;">
+        <div style="background:var(--bg2);border:1px solid var(--border);
+                    border-bottom:3px solid var(--accent);border-radius:10px;
+                    padding:14px 18px;box-shadow:0 1px 4px rgba(0,0,0,.06);">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+                      letter-spacing:0.06em;color:var(--text3);margin-bottom:6px;">
             {icon} {label}
           </div>
-          <div style="font-size:1.8rem;font-weight:800;color:var(--text);letter-spacing:-0.02em;">
+          <div style="font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.02em;">
             {value}
           </div>
         </div>""", unsafe_allow_html=True)
@@ -319,16 +321,17 @@ def render_pricing_results(pricing: dict, updated_file: str = None):
     # ── Total banner ─────────────────────────────────────────────────────
     a = pricing.get("assumptions", {})
     st.markdown(
-        f"""<div style="background:var(--surface2);border-left:4px solid var(--accent);
-                    padding:14px 20px;border-radius:10px;margin-top:12px;box-shadow:var(--shadow);">
-          <span style="font-size:15px;font-weight:600;color:var(--text);">
+        f"""<div style="background:var(--accent-lt);border-left:4px solid var(--accent);
+                    padding:14px 20px;border-radius:10px;margin-top:12px;
+                    border:1px solid var(--border);">
+          <span style="font-size:13px;font-weight:600;color:var(--text2);">
             Total Estimated Monthly Cost:
           </span>
           <span style="font-size:22px;font-weight:800;color:var(--accent);margin-left:12px;">
             ${pricing['total_monthly_usd']:,.2f}
           </span>
           &nbsp;&nbsp;
-          <span style="font-size:13px;color:var(--text2);">
+          <span style="font-size:12px;color:var(--text3);">
             {a.get('region','—')} · {a.get('deployment','—')} · {a.get('pricing_date','—')}
           </span>
         </div>""",
@@ -420,10 +423,11 @@ def render_inflation_forecast(pricing: dict):
     flat_5yr = pricing["total_annual_usd"] * 5
     extra = five_yr - flat_5yr
     st.markdown(
-        f"""<div style="background:var(--surface2);border-left:4px solid var(--warning);
-                    padding:12px 18px;border-radius:10px;margin-top:8px;box-shadow:var(--shadow);">
-          <span style="font-weight:600;color:var(--text);font-size:0.95rem;">5-Year Total with {rate*100:.0f}% Inflation:</span>
-          <span style="font-size:20px;font-weight:800;color:var(--warning);margin-left:10px;">
+        f"""<div style="background:var(--warn-lt,#fff8e6);border-left:4px solid var(--warn,#f59e0b);
+                    padding:12px 18px;border-radius:10px;margin-top:8px;
+                    border:1px solid rgba(245,158,11,.2);">
+          <span style="font-weight:600;color:var(--text);font-size:13px;">5-Year Total with {rate*100:.0f}% Inflation:</span>
+          <span style="font-size:20px;font-weight:800;color:var(--warn,#f59e0b);margin-left:10px;">
             ${five_yr:,.0f}
           </span>
           <span style="font-size:12px;color:var(--text3);margin-left:12px;">
@@ -457,22 +461,21 @@ def render_db_selection(pricing: dict):
         monthly  = info.get("monthly", 0)
         reason   = info.get("reason", "—")
         note     = info.get("note", "—")
-        bg_color = "#e8f5e9" if "Self" in hosting else "#fff8e6" if "Managed" in hosting else "#e3f2fd"
+        bg_color = "#e8f5e9" if "Self" in hosting else "#fff8e6" if "RDS" in hosting else "#e3f2fd"
 
         cols[i].markdown(
-            f"""<div style="background:var(--surface); border-radius:12px; padding:14px;
-                           border:1px solid var(--border); min-height:200px; 
-                           display:flex; flex-direction:column;
-                           box-shadow:var(--shadow); transition: all 0.2s ease;">
-              <div style="font-size:13px; font-weight:700; color:var(--text); margin-bottom: 2px;">{icon} {name}</div>
-              <div style="font-size:11px; color:var(--text2); margin-top:2px; margin-bottom: 6px;">
+            f"""<div style="background:var(--bg2); border-radius:10px; padding:14px;
+                           border:1px solid var(--border); min-height:180px;
+                           display:flex; flex-direction:column;">
+              <div style="font-size:12px; font-weight:700; color:var(--text); margin-bottom: 4px;">{icon} {name}</div>
+              <div style="font-size:10px; color:var(--text2); margin-top:2px; margin-bottom: 6px;">
                 <b>Hosting:</b> {hosting}
               </div>
-              <div style="font-size:17px; font-weight:800; color:var(--accent); margin-bottom: 6px;">
+              <div style="font-size:18px; font-weight:800; color:var(--accent); margin-bottom: 6px;">
                 ${monthly:,.0f}<span style="font-size:10px; font-weight:400;">/mo</span>
               </div>
-              <div style="font-size:9.5px; color:var(--text2); line-height: 1.35; flex-grow: 1;">{reason}</div>
-              <div style="font-size:9px; color:var(--text3); margin-top:8px; font-style:italic; line-height: 1.2;">{note}</div>
+              <div style="font-size:9.5px; color:var(--text2); line-height: 1.4; flex-grow: 1;">{reason}</div>
+              <div style="font-size:9px; color:var(--text3); margin-top:8px; font-style:italic;">{note}</div>
             </div>""",
             unsafe_allow_html=True,
         )
@@ -631,9 +634,10 @@ def render_env_pricing(env_pricing: dict, client_mode: str = "saas"):
     lbl = " + ".join(parts) + " Combined Monthly:" if parts else "Combined Monthly:"
     
     st.markdown(
-        f"""<div style="background:var(--surface2);border-left:4px solid var(--accent);
-                    padding:12px 18px;border-radius:10px;margin-top:10px;box-shadow:var(--shadow);">
-          <span style="font-weight:600;font-size:14px;color:var(--text);">
+        f"""<div style="background:var(--accent-lt);border-left:4px solid var(--accent);
+                    padding:12px 18px;border-radius:10px;margin-top:10px;
+                    border:1px solid var(--border);">
+          <span style="font-weight:600;font-size:13px;color:var(--text2);">
             {lbl}
           </span>
           <span style="font-size:20px;font-weight:800;color:var(--accent);margin-left:10px;">

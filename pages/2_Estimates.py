@@ -1,313 +1,62 @@
 """
-pages/2_Estimates.py — Versioned estimate history for a selected client
+pages/2_Estimates.py — Versioned estimate history matching businessnext_ui.html
 """
 import os
-import re
 import pathlib
 import streamlit as st
 from database import get_estimates_by_client, get_estimate_by_id, get_estimate_files, delete_estimate
-from rbac import can, role_badge
+from rbac import can
 from theme import inject_theme
 
 # ── Auth guard ────────────────────────────────────────────────────────────
-# Auth is now handled by st.navigation in app.py
-
 client = st.session_state.get("selected_client")
 if not client:
     st.switch_page("pages/1_Clients.py")
 
-# Config handled by app.py
 inject_theme()
 
+# Compact button overrides for estimate history action buttons
 st.markdown("""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap');
-  html, body, [data-testid="stAppViewContainer"] { font-family: 'Inter', sans-serif; background-color: var(--bg) !important; color: var(--text) !important; }
-
-  .page-header {
-    padding: 1.25rem 0 1.75rem;
-    border-bottom: 2px solid var(--border);
-    margin-bottom: 2rem;
-    position: relative;
-  }
-  .page-header::after {
-    content: '';
-    position: absolute;
-    bottom: -2px; left: 0;
-    width: 60px; height: 2px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-  }
-  .breadcrumb { font-size: 0.78rem; color: var(--text2); margin-bottom: 0.5rem; }
-  .breadcrumb a { color: var(--accent); text-decoration: none; }
-  .page-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.75rem; font-weight: 800; color: var(--text); letter-spacing: -0.025em; }
-  .page-subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
-
-  .estimate-card {
-    background: var(--surface);
-    border: 1.5px solid rgba(79,142,247,0.2);
-    border-left: 4px solid var(--accent);
-    border-radius: 14px;
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 1rem;
-    transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
-    display: flex; align-items: center; gap: 1rem;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3), 0 1px 4px rgba(0,0,0,0.2);
-  }
-  .estimate-card:hover {
-    border-color: rgba(79,142,247,0.5);
-    border-left-color: var(--accent2);
-    box-shadow: 0 6px 24px rgba(79,142,247,0.2);
-    transform: translateX(3px);
-  }
-
-  .version-badge {
-    background: linear-gradient(135deg, #4f8ef7, #3b7de8);
-    border-radius: 8px; padding: 0.4rem 0.85rem;
-    font-family: 'Syne', sans-serif; font-size: 0.95rem;
-    font-weight: 700; color: white; white-space: nowrap;
-    flex-shrink: 0;
-  }
-  .est-info { flex: 1; min-width: 0; }
-  .est-date { font-size: 0.78rem; color: var(--text3); margin-bottom: 0.2rem; }
-  .est-mode { font-size: 0.82rem; font-weight: 600; color: var(--text); }
-  .est-cost { font-size: 0.82rem; color: var(--accent3); }
-  .mode-badge {
-    display: inline-block; font-size: 0.68rem; font-weight: 600;
-    padding: 0.15rem 0.5rem; border-radius: 5px; margin-left: 0.5rem;
-  }
-  .mode-saas { background: rgba(0,212,170,0.15); color: #00d4aa; }
-  .mode-onprem { background: rgba(79,142,247,0.15); color: #4f8ef7; }
-
-  .empty-state {
-    text-align: center; padding: 4rem 2rem;
-    color: #5a637a;
-  }
-  .empty-icon { font-size: 3rem; margin-bottom: 1rem; }
-  .empty-title { font-family: 'Syne', sans-serif; font-size: 1.2rem; color: #8b9ab8; }
-
-  div.stButton > button {
-    border-radius: 8px !important; font-size: 0.8rem !important;
-    padding: 0.4rem 0.75rem !important; font-weight: 600 !important;
-  }
-  
-  /* Fix native Streamlit misalignment between st.button and st.download_button */
-  div[data-testid="stColumn"] [data-testid="stDownloadButton"] {
-    margin-top: 28px !important; 
-  }
-  
-  /* Apply danger style without pushing the button down */
-  div.element-container:has(+ div.element-container .danger-btn-target) button {
-    background: #ef4444 !important;
-    border: none !important;
-  }
-  div.element-container:has(+ div.element-container .danger-btn-target) button:hover {
-    background: #dc2626 !important;
-  }
-
-  /* ── Force dark on ALL Streamlit native containers ── */
-  .stApp, section[data-testid="stMain"], section[data-testid="stMain"] > *,
-  div[data-testid="stMainBlockContainer"], div[data-testid="stMainBlockContainer"] > *,
-  div[data-testid="block-container"], div[data-testid="block-container"] > *,
-  div[data-testid="stVerticalBlock"], div[data-testid="stHorizontalBlock"],
-  .main, .main > * { background-color: #0a0e1a !important; color: #e8edf8 !important; }
-  input, textarea, select, div[data-baseweb="input"] > div,
-  div[data-baseweb="base-input"] > input, div[data-baseweb="select"] > div,
-  div[data-testid="stDateInput"] input, div[data-testid="stTextInput"] input,
-  div[data-testid="stNumberInput"] input, div[role="listbox"], div[role="option"] {
-    background-color: #151d35 !important; color: #e8edf8 !important; border-color: #2a3555 !important;
-  }
-  div[data-testid="stExpander"], div[data-testid="stExpander"] > div {
-    background-color: #151d35 !important; border-color: #2a3555 !important;
-  }
-  div[data-testid="stAlert"] { background-color: #151d35 !important; border-color: #2a3555 !important; }
-
-
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<style>
-/* ═══════════════════════════════════════════════
-   NUCLEAR DARK MODE — hardcoded, no config needed
-═══════════════════════════════════════════════ */
-
-/* Every possible Streamlit container */
-html, body,
-.stApp,
-[data-testid="stAppViewContainer"],
-[data-testid="stMain"],
-[data-testid="stMainBlockContainer"],
-[data-testid="block-container"],
-[data-testid="stVerticalBlock"],
-[data-testid="stHorizontalBlock"],
-[data-testid="stSidebar"],
-[data-testid="stSidebarContent"],
-[data-testid="stSidebarUserContent"],
-[data-testid="stHeader"],
-[data-testid="stToolbar"],
-[data-testid="stDecoration"],
-[data-testid="stStatusWidget"],
-section.main,
-.main,
-.block-container,
-div[class*="appview"],
-div[class*="main"],
-div[class*="block"] {
-  background-color: #0a0e1a !important;
-  color: #e8edf8 !important;
+.stButton > button {
+  padding: 4px 10px !important;
+  font-size: 11px !important;
+  min-height: 28px !important;
+  height: 28px !important;
+  border-radius: 6px !important;
 }
-
-
-
-/* All inputs */
-input, textarea, select {
-  background-color: #1c2640 !important;
-  color: #e8edf8 !important;
-  border: 1px solid #2a3555 !important;
+.stButton > button[data-testid="stBaseButton-primary"] {
+  background: var(--accent) !important;
+  color: #fff !important;
 }
-
-/* Streamlit input wrappers */
-[data-testid="stTextInput"] > div > div,
-[data-testid="stTextInput"] input,
-[data-testid="stNumberInput"] > div > div,
-[data-testid="stNumberInput"] input,
-[data-testid="stDateInput"] > div > div,
-[data-testid="stDateInput"] input,
-[data-testid="stTimeInput"] input,
-[data-testid="stTextArea"] textarea {
-  background-color: #1c2640 !important;
-  color: #e8edf8 !important;
-  border-color: #2a3555 !important;
-}
-
-/* Selectbox / dropdown */
-[data-testid="stSelectbox"] > div > div,
-[data-baseweb="select"] > div,
-[data-baseweb="input"] > div,
-[data-baseweb="base-input"],
-[data-baseweb="base-input"] > div,
-[data-baseweb="popover"],
-[data-baseweb="menu"],
-[role="listbox"],
-[role="option"],
-ul[role="listbox"],
-li[role="option"] {
-  background-color: #151d35 !important;
-  color: #e8edf8 !important;
-  border-color: #2a3555 !important;
-}
-
-/* Slider */
-[data-testid="stSlider"] > div > div > div,
-[data-testid="stSlider"] div[role="slider"] {
-  background-color: #2a3555 !important;
-}
-
-/* Expanders */
-[data-testid="stExpander"],
-[data-testid="stExpander"] > div,
-[data-testid="stExpander"] summary {
-  background-color: #151d35 !important;
-  border-color: #2a3555 !important;
-  color: #e8edf8 !important;
-}
-
-/* Tabs */
-[data-baseweb="tab-list"],
-[data-baseweb="tab"],
-[data-baseweb="tab-panel"],
-[role="tabpanel"],
-[role="tab"] {
-  background-color: #151d35 !important;
-  color: #e8edf8 !important;
-  border-color: #2a3555 !important;
-}
-[aria-selected="true"] {
-  background-color: #4f8ef7 !important;
-  color: #ffffff !important;
-}
-
-/* Alerts / info boxes */
-[data-testid="stAlert"],
-[data-testid="stAlert"] > div,
-[data-testid="stNotification"] {
-  background-color: #151d35 !important;
-  border-color: #2a3555 !important;
-  color: #e8edf8 !important;
-}
-
-/* Metrics */
-[data-testid="stMetric"],
-[data-testid="stMetricValue"],
-[data-testid="stMetricLabel"],
-[data-testid="stMetricDelta"] {
-  background-color: #151d35 !important;
-  color: #e8edf8 !important;
-}
-
-/* Dataframes */
-[data-testid="stDataFrame"],
-[data-testid="stDataFrame"] > div,
-[data-testid="stTable"],
-.stDataFrame iframe {
-  background-color: #151d35 !important;
-  color: #e8edf8 !important;
-}
-
-/* Checkboxes, radios */
-[data-testid="stCheckbox"],
-[data-testid="stRadio"],
-[data-testid="stRadio"] > div,
-[data-testid="stCheckbox"] > label {
-  color: #e8edf8 !important;
-}
-
-/* All labels */
-label, .stMarkdown p, .stMarkdown span,
-p, span, li {
-  color: #e8edf8 !important;
-}
-
-/* Dividers */
-hr { border-color: #2a3555 !important; }
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #0a0e1a; }
-::-webkit-scrollbar-thumb { background: #2a3555; border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: #4f8ef7; }
-/* Ensure standard and download buttons align perfectly vertically in the list */
-[data-testid="column"] .stButton,
-[data-testid="column"] [data-testid="stDownloadButton"] {
-  display: block !important;
-  margin-top: 5px !important;
-  padding-top: 0 !important;
+.stDownloadButton > button {
+  padding: 4px 10px !important;
+  font-size: 11px !important;
+  min-height: 28px !important;
+  height: 28px !important;
+  border-radius: 6px !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Header ─────────────────────────────────────────────────────────────────
-hdr_l, hdr_r = st.columns([5, 1])
+# ── Page header ──────────────────────────────────────────────────────────
+hdr_l, hdr_r = st.columns([4, 2])
 with hdr_l:
     st.markdown(f"""
-    <div class="page-header">
-      <div class="breadcrumb">
-        Clients › <strong style="color:var(--text)">{client['name']}</strong>
+    <div class="bn-page-header">
+      <div>
+        <div class="bn-page-title">{client['name']} — Estimates</div>
+        <div class="bn-page-subtitle">{client.get('sector','Banking')} · All versioned cost estimates</div>
       </div>
-      <div class="page-title">{client['name']} <span style="vertical-align: text-bottom;">{role_badge()}</span></div>
-      <div class="page-subtitle">{client.get('sector','Banking')} · All versioned cost estimates</div>
     </div>
     """, unsafe_allow_html=True)
 with hdr_r:
-    st.markdown("<div style='padding-top:1.2rem'></div>", unsafe_allow_html=True)
-    if st.button("← Clients", key="back_to_clients", use_container_width=True):
+    st.markdown("<div style='padding-top:1.5rem'></div>", unsafe_allow_html=True)
+    ba, bb = st.columns(2)
+    if ba.button("← All Clients", key="back_to_clients", use_container_width=True):
         st.switch_page("pages/1_Clients.py")
-
-# ── New estimate button ────────────────────────────────────────────────────
-new_l, _ = st.columns([2, 5])
-with new_l:
     if can("create_estimate"):
-        if st.button("➕  New Estimate", key="new_est_top", type="primary", use_container_width=True):
+        if bb.button("+ New Estimate", key="new_est_top", use_container_width=True, type="primary"):
             st.session_state.load_estimate = None
             for k in ["last_metrics","last_distribution","last_pricing","env_pricing",
                       "gcp_pricing","comparison","cloud_sizing_xlsx","aws_pricing_xlsx",
@@ -316,26 +65,40 @@ with new_l:
                 st.session_state[k] = None if k not in ["show_summary","show_success"] else False
             st.switch_page("pages/3_Estimator.py")
 
-st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
-
-# ── Estimates list ─────────────────────────────────────────────────────────
+# ── Estimates list ────────────────────────────────────────────────────────
 try:
     estimates = get_estimates_by_client(client["id"])
 except Exception as e:
     st.error(f"Error loading estimates: {e}")
     estimates = []
 
+est_count = len(estimates)
+st.markdown(f"""
+<div class="bn-panel">
+  <div class="bn-panel-header">
+    <span class="bn-dot accent"></span>
+    <span class="bn-panel-title">Estimate History</span>
+    <span class="bn-badge accent">{est_count} estimate{'s' if est_count != 1 else ''}</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
 if not estimates:
     st.markdown("""
-    <div class="empty-state">
-      <div class="empty-icon">📭</div>
-      <div class="empty-title">No estimates yet</div>
-      <div style="margin-top:0.5rem;font-size:0.85rem;">
-        Click <strong>New Estimate</strong> above to create the first one.
+    <div class="bn-panel">
+      <div class="bn-panel-body">
+        <div class="bn-empty-state">
+          <div class="bn-empty-icon">📭</div>
+          <div class="bn-empty-title">No estimates yet</div>
+          <div class="bn-empty-sub">Click <strong>+ New Estimate</strong> above to create the first one.</div>
+        </div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 else:
+    # Render estimates inside a panel body
+    st.markdown('<div class="bn-panel"><div>', unsafe_allow_html=True)
+
     for est in estimates:
         eid      = est["id"]
         version  = est.get("version") or "—"
@@ -344,29 +107,30 @@ else:
         db_type  = est.get("db_type", "PostgreSQL")
         monthly  = est.get("total_monthly_usd") or 0
         five_yr  = est.get("total_5year_usd") or 0
-        mode_lbl = "SaaS" if mode == "saas" else "On-Prem"
-        mode_cls = "mode-saas" if mode == "saas" else "mode-onprem"
+        mode_lbl = "SAAS" if mode == "saas" else "ONPREM"
         cost_str = f"${monthly:,.0f}/mo" if monthly else "Sizing only"
-        f5_str   = f" · ${five_yr:,.0f} over 5yr" if five_yr else ""
+        annual   = monthly * 12 if monthly else 0
+        f5_str   = f"${five_yr:,.0f} 5yr" if five_yr else ""
 
-        row_l, row_r = st.columns([6, 4])
+        row_l, row_r = st.columns([5, 3])
         with row_l:
             st.markdown(f"""
-            <div class="estimate-card">
-              <div class="version-badge">v{version}</div>
-              <div class="est-info">
-                <div class="est-date">📅 {date_str} &nbsp;·&nbsp; {db_type}</div>
-                <div class="est-mode">
-                  {mode_lbl}
-                  <span class="mode-badge {mode_cls}">{mode_lbl}</span>
+            <div class="bn-estimate-row">
+              <div class="bn-est-ver">v{version}</div>
+              <div class="bn-est-info">
+                <div class="bn-est-name">{date_str} · {db_type}</div>
+                <div class="bn-est-meta">
+                  <span class="bn-tag {mode}">{mode_lbl}</span>
+                  {cost_str}{' · ' + f5_str if f5_str else ''}
                 </div>
-                <div class="est-cost">💰 {cost_str}{f5_str}</div>
               </div>
+              <div class="bn-est-cost">{('$'+f'{annual/1000:.0f}K/yr') if annual else 'Sizing only'}</div>
             </div>
             """, unsafe_allow_html=True)
+
         with row_r:
             st.markdown("<div style='padding-top:0.6rem'></div>", unsafe_allow_html=True)
-            a, b, c, d = st.columns([1.5, 1, 1.5, 1.5])
+            a, b, c, d = st.columns([2, 1, 1, 1])
 
             if a.button("Load", key=f"load_{eid}", use_container_width=True, type="primary"):
                 data = get_estimate_by_id(eid)
@@ -380,7 +144,6 @@ else:
                     st.session_state.db_type_snap       = data.get("db_type", "PostgreSQL")
                     st.session_state.last_saved_id      = eid
                     st.session_state.load_estimate      = data
-                    # Restore Excel files
                     files = get_estimate_files(eid)
                     pathlib.Path("reports").mkdir(exist_ok=True)
                     if files.get("cloud_sizing"):
@@ -397,9 +160,7 @@ else:
                 if b.button("🗑", key=f"del_{eid}", use_container_width=True):
                     delete_estimate(eid)
                     st.rerun()
-                b.markdown("<div class='danger-btn-target'></div>", unsafe_allow_html=True)
 
-            # Download XLSX
             files = get_estimate_files(eid)
             if files.get("cloud_sizing"):
                 c.download_button(
@@ -415,3 +176,5 @@ else:
                     key=f"dl_pricing_{eid}", use_container_width=True,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
+
+    st.markdown('</div></div>', unsafe_allow_html=True)

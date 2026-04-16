@@ -69,12 +69,23 @@ for k, v in DEFAULTS.items():
 
 # ── Top Navigation ────────────────────────────────────────────────────────
 client = st.session_state.get("selected_client")
-_, nav_right = st.columns([9, 1])
-with nav_right:
+
+hdr_l, hdr_r = st.columns([4, 1])
+with hdr_l:
+    st.markdown("""
+    <div class="bn-page-header">
+      <div>
+        <div class="bn-page-title">Cost Estimator</div>
+        <div class="bn-page-subtitle" id="est-client-label">Configure inputs and generate pricing</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+with hdr_r:
+    st.markdown("<div style='padding-top:1.5rem'></div>", unsafe_allow_html=True)
     if st.button("← Clients", key="nav_back_clients_estimator", use_container_width=True):
         st.switch_page("pages/1_Clients.py")
 
-# ── Page header ────────────────────────────────────────────────────────────
+# ── Page header detail (client + mode) ─────────────────────────────────────
 client = st.session_state.get("selected_client")
 default_customer = ""
 if client:
@@ -153,7 +164,8 @@ elif st.session_state.client_mode == "onprem":
     st.info(
         "**🏢 On-Premise Mode** — DB: PostgreSQL / SQL Server / Oracle · "
         "Environments: DR optional · "
-        "Output: Cloud Sizing XLSX + **OpenShift / Kubeadm Oracle On-Prem Sizing XLSX** (dynamically layout-matched)",
+        "Output: Cloud Sizing XLSX + **On-Prem Sizing XLSX** (OpenShift for SQL Server/PostgreSQL; Kubeadm for Oracle) "
+        "+ **Kubeadm Oracle XLSX** (always generated as an alternative architecture reference)",
         icon="ℹ️",
     )
 else:
@@ -207,13 +219,13 @@ else:
     env_multiplier  = sum([include_preprod, include_sit, include_uat])
     env_names       = [n for n, chk in [("Pre-Prod", include_preprod), ("SIT", include_sit), ("UAT", include_uat)] if chk]
 
-    msgs = {
-        "PostgreSQL":  ("✅ PostgreSQL — self-hosted, Patroni HA.", "success"),
-        "SQL Server":  ("⚠️ SQL Server — client provides Microsoft licensing.",  "warning"),
-        "Oracle":      ("⚠️ Oracle — client provides Oracle licensing (BYOL).",  "warning"),
-    }
-    msg, typ = msgs[db_type]
-    getattr(st, typ)(msg)
+#    msgs = {
+#        "PostgreSQL":  ("✅ PostgreSQL — self-hosted, Patroni HA.", "success"),
+#        "SQL Server":  ("⚠️ SQL Server — client provides Microsoft licensing.",  "warning"),
+#        "Oracle":      ("⚠️ Oracle — client provides Oracle licensing (BYOL).",  "warning"),
+#    }
+#    msg, typ = msgs[db_type]
+#    getattr(st, typ)(msg)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -593,29 +605,11 @@ if st.button(btn_label, type="primary", use_container_width=True, key="btn_gener
                     pricing["assumptions"]["deployment"] = "Multi-AZ (HA) for Prod/DR"
                 
         else:
+            # On-Prem: no pricing calculation at all — sizing only.
+            # DR and Pre-Prod requirements go into the on-prem XLSX workbook,
+            # not into the dashboard or cloud_sizing.xlsx.
             st.session_state.last_pricing = None
-            if env_multiplier > 0 or include_dr:
-                with st.spinner("Step 4 — Building additional environment requirements…"):
-                    env_pricing = price_additional_environments(
-                        db_type=db_type, deployment="onprem", metrics=metrics,
-                        preprod_region=aws_region_sel, dr_region=dr_region_sel
-                    )
-                    
-                    if env_multiplier == 0:
-                        env_pricing["preprod_sit_uat"] = None
-                    else:
-                        base = env_pricing.get("preprod_sit_uat") or {}
-                        if base:
-                            base["env_multiplier"] = env_multiplier
-                            base["env_names"]      = env_names
-                            env_pricing["preprod_sit_uat"] = base
-                            
-                    if not include_dr:
-                        env_pricing["dr"] = None
-                        
-                    st.session_state.env_pricing = env_pricing
-            else:
-                st.session_state.env_pricing = None
+            st.session_state.env_pricing  = None
 
         with st.spinner("Generating Excel files…"):
             excel_paths = generate_excel_reports(
@@ -625,6 +619,8 @@ if st.button(btn_label, type="primary", use_container_width=True, key="btn_gener
                 db_type=db_type, client_mode=client_mode,
                 gcp_pricing=st.session_state.get("gcp_pricing"),
                 comparison=st.session_state.get("comparison"),
+                include_dr=include_dr,
+                env_names=env_names,
             )
             st.session_state.cloud_sizing_xlsx        = excel_paths.get("cloud_sizing")
             st.session_state.aws_pricing_xlsx         = excel_paths.get("aws_pricing")
@@ -675,10 +671,9 @@ if st.button(btn_label, type="primary", use_container_width=True, key="btn_gener
 
 if st.session_state.get("show_success"):
     st.markdown("""
-    <div style="background:var(--surface2);border:1px solid var(--success);
-                padding:12px 18px;border-radius:10px;margin-bottom:1.5rem;display:flex;align-items:center;gap:12px;">
-      <span style="font-size:1.3rem;">✅</span>
-      <span style="color:var(--success);font-weight:600;">Estimate generated and saved successfully!</span>
+    <div class="bn-alert-banner success">
+      <span style="font-size:16px">✓</span>
+      <span style="font-size:12px;font-weight:600;">Estimate generated and saved successfully!</span>
     </div>
     """, unsafe_allow_html=True)
     st.session_state.show_success = False
@@ -702,15 +697,16 @@ if client_mode == "saas" and st.session_state.last_pricing:
     render_pricing_results(p, updated_file=st.session_state.last_updated_file)
     render_inflation_forecast(p)
 
-if st.session_state.env_pricing:
+if client_mode == "saas" and st.session_state.env_pricing:
     render_env_pricing(st.session_state.env_pricing, client_mode=client_mode)
 
-if client_mode == "onprem" and st.session_state.last_distribution:
-    st.info(
-        "**On-Premise mode:** No AWS pricing is calculated. "
-        "The Cloud Sizing XLSX contains infrastructure requirements only.",
-        icon="ℹ️",
-    )
+
+#if client_mode == "onprem" and st.session_state.last_distribution:
+#    st.info(
+#        "**On-Premise mode:** No AWS pricing is calculated. "
+#        "The Cloud Sizing XLSX contains infrastructure requirements only.",
+#        icon="ℹ️",
+#    )
 
 # ── AWS vs GCP Comparison ─────────────────────────────────────────────────
 if client_mode == "saas" and st.session_state.get("comparison"):
@@ -757,15 +753,22 @@ if st.session_state.cloud_sizing_xlsx or st.session_state.aws_pricing_xlsx or st
     divider()
     section_title("📥", "Download Reports")
     cname = re.sub(r'[^a-zA-Z0-9_\-]', '_', st.session_state.customer_name_snap)
-    
-    # ── SaaS Mode Columns (2 buttons) vs On-Prem Columns (3 buttons)
+
+    # Derive active db for on-prem labels
+    _active_db = st.session_state.get("db_type_snap", db_type)
+    _db_slug   = _active_db.lower().replace(" ", "_")
+
+    # ── Column layout
     if client_mode == "saas":
         cols = st.columns(2)
         xl1, xl2 = cols[0], cols[1]
+        xl3 = None
     else:
+        # On-Prem always has 3 buttons: Cloud Sizing + OpenShift + Kubeadm
         cols = st.columns(3)
         xl1, xl2, xl3 = cols[0], cols[1], cols[2]
 
+    # Button 1: Cloud Sizing (always)
     if st.session_state.cloud_sizing_xlsx:
         try:
             with open(st.session_state.cloud_sizing_xlsx, "rb") as f:
@@ -774,6 +777,8 @@ if st.session_state.cloud_sizing_xlsx or st.session_state.aws_pricing_xlsx or st
                     key="dl_cloud_sizing", use_container_width=True)
         except Exception as e:
             st.error(f"Error downloading Cloud Sizing: {e}")
+
+    # Button 2: SaaS → Pricing Forecast / On-Prem → OpenShift sizing
     if client_mode == "saas" and st.session_state.get("aws_pricing_xlsx"):
         try:
             with open(st.session_state.aws_pricing_xlsx, "rb") as f:
@@ -784,42 +789,40 @@ if st.session_state.cloud_sizing_xlsx or st.session_state.aws_pricing_xlsx or st
             st.error(f"Error downloading Pricing Forecast: {e}")
 
     if client_mode == "onprem":
+        # Button 2: OpenShift sizing — selected DB
         if st.session_state.get("onprem_sizing_xlsx"):
             try:
                 with open(st.session_state.onprem_sizing_xlsx, "rb") as f:
                     xl2.download_button(
-                        "🏢 On-Prem OpenShift (XLSX)", f,
-                        file_name=f"onprem_openshift_sizing_{cname}.xlsx",
+                        f"🏢 OpenShift — {_active_db} (XLSX)", f,
+                        file_name=f"onprem_openshift_{_db_slug}_sizing_{cname}.xlsx",
                         key="dl_onprem_openshift", use_container_width=True,
                     )
             except Exception as e:
-                st.error(f"Error downloading On-Prem OpenShift Sizing: {e}")
+                st.error(f"Error downloading OpenShift Sizing: {e}")
 
-        if st.session_state.get("onprem_oracle_sizing_xlsx"):
+        # Button 3: Kubeadm sizing — same selected DB
+        if xl3 is not None and st.session_state.get("onprem_oracle_sizing_xlsx"):
             try:
                 with open(st.session_state.onprem_oracle_sizing_xlsx, "rb") as f:
                     xl3.download_button(
-                        "🏢 Kubeadm Open Source Oracle (XLSX)", f,
-                        file_name=f"onprem_kubeadm_oracle_sizing_{cname}.xlsx",
-                        key="dl_onprem_kubeadm_oracle", use_container_width=True,
+                        f"🏢 Kubeadm — {_active_db} (XLSX)", f,
+                        file_name=f"onprem_kubeadm_{_db_slug}_sizing_{cname}.xlsx",
+                        key="dl_onprem_kubeadm", use_container_width=True,
                     )
             except Exception as e:
-                st.error(f"Error downloading Kubeadm Oracle Sizing: {e}")
+                st.error(f"Error downloading Kubeadm Sizing: {e}")
 
     if client_mode != "onprem" and st.session_state.get("pdf_report_path"):
         try:
             with open(st.session_state.pdf_report_path, "rb") as f:
                 pdf_bytes = f.read()
             st.markdown("""
-            <div style="margin-top:1rem;padding:14px 18px;
-                        background:var(--surface2); border:1px solid var(--warning);
-                        border-radius:10px;display:flex;align-items:center;gap:14px;">
-              <span style="font-size:1.4rem;">📄</span>
-              <div>
-                <div style="color:var(--warning);font-weight:700;font-size:0.95rem;">Full Pricing Report (PDF)</div>
-                <div style="color:#78716c;font-size:0.78rem;margin-top:2px;">
-                  Executive Summary · Node Distribution · Cost Breakdown · 5-Year Forecast · PUPM Analysis
-                </div>
+            <div class="bn-panel">
+              <div class="bn-panel-header">
+                <span class="bn-dot warn"></span>
+                <span class="bn-panel-title">Full Pricing Report (PDF)</span>
+                <span class="bn-badge warn">Executive Summary · PUPM · 5-Yr Forecast</span>
               </div>
             </div>
             """, unsafe_allow_html=True)
@@ -835,12 +838,13 @@ if st.session_state.cloud_sizing_xlsx or st.session_state.aws_pricing_xlsx or st
         except Exception as e:
             st.error(f"Error downloading PDF Report: {e}")
 
-# ── Chatbot (SaaS only) ────────────────────────────────────────────────────
-if client_mode == "saas" and st.session_state.last_pricing:
+# ── Chatbot (SaaS and On-Premise) ────────────────────────────────────────────────────
+if st.session_state.last_distribution:
     render_chatbot(
         pricing=st.session_state.last_pricing,
         distribution=st.session_state.last_distribution,
         metrics=st.session_state.last_metrics,
+        client_mode=client_mode,
     )
 
 # ── Clear results ──────────────────────────────────────────────────────────

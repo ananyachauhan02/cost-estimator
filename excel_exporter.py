@@ -337,23 +337,23 @@ def _build_db_selection_sheet(wb: Workbook, db_selection: dict, customer: str):
             "hosting": "Self-Hosted on EC2",
             "service": "EC2 r5.8xlarge × 2 + EBS io2",
             "monthly": db_selection.get("postgres_monthly", 0),
-            "reason":  "PostgreSQL is open-source; self-hosted on EC2 avoids Managed Database licensing premium. HA via Patroni + etcd.",
+            "reason":  "PostgreSQL is open-source; self-hosted on EC2 avoids licensing premium. HA via Patroni + etcd.",
         },
         {
             "db":      "SQL Server",
             "type":    "Relational / Commercial",
-            "hosting": "AWS Managed Database",
-            "service": "Managed SQL Server Multi-AZ",
+            "hosting": "AWS Managed ",
+            "service": "SQL Server Multi-AZ",
             "monthly": db_selection.get("sqlserver_monthly", 0),
-            "reason":  "SQL Server requires Microsoft licensing; Managed Database handles patching, backups, and HA automatically.",
+            "reason":  "SQL Server requires Microsoft licensing; Managed handles patching, backups, and HA automatically.",
         },
         {
             "db":      "Oracle",
             "type":    "Relational / Commercial",
-            "hosting": "AWS Managed Database",
-            "service": "Managed Oracle Multi-AZ",
+            "hosting": "AWS Managed ",
+            "service": "Oracle Multi-AZ",
             "monthly": db_selection.get("oracle_monthly", 0),
-            "reason":  "Oracle licensing is complex; Managed Oracle reduces compliance risk and operational overhead.",
+            "reason":  "Oracle licensing is complex; Oracle reduces compliance risk and operational overhead.",
         },
         {
             "db":      "ElastiCache (Redis)",
@@ -387,7 +387,7 @@ def _build_db_selection_sheet(wb: Workbook, db_selection: dict, customer: str):
 
     for label, hex_c, desc in [
         ("Green",  "E2EFDA", "Self-Hosted on EC2 — lower cost, more control, requires DBA expertise"),
-        ("Yellow", "FFF2CC", "AWS Managed Database — higher cost, zero ops overhead, commercial license compliance"),
+        ("Yellow", "FFF2CC", "AWS Managed — higher cost, zero ops overhead, commercial license compliance"),
     ]:
         c1 = ws.cell(row=row, column=1, value=label)
         c1.fill = _fill(hex_c); c1.font = _font(bold=True, size=10)
@@ -914,6 +914,8 @@ def generate_excel_reports(
     gcp_pricing:  dict = None,
     comparison:   dict = None,
     years:        int  = 5,
+    include_dr:   bool = False,
+    env_names:    list = None,
 ) -> dict:
     """
     Generate cloud_sizing.xlsx and aws_pricing_forecast.xlsx (+GCP/Comparison sheets).
@@ -926,9 +928,11 @@ def generate_excel_reports(
     # ── Workbook 1: Cloud Sizing ──────────────────────────────────────────
     wb1 = Workbook()
     _build_cloud_sizing_sheet(wb1, distribution, metrics, customer)
-    if db_selection:
+    # DB Selection sheet only makes sense for SaaS (where pricing is calculated)
+    if client_mode == "saas" and db_selection:
         _build_db_selection_sheet(wb1, db_selection, customer)
-    if env_pricing:
+    # Pre-Prod/DR sheets in Cloud Sizing XLSX only for SaaS — on-prem uses dedicated workbooks
+    if client_mode == "saas" and env_pricing:
         preprod = env_pricing.get("preprod_sit_uat")
         dr      = env_pricing.get("dr")
         if preprod:
@@ -962,37 +966,51 @@ def generate_excel_reports(
         print(f"[excel_exporter] Saved {pricing_path}")
 
     # ── Workbook 3 & 4: On-Prem Sizing Sheets (On-Prem only) ──────────────
+    # Both OpenShift and Kubeadm files are ALWAYS generated.
+    # Both use the user-selected db_type — same DB, two cluster architectures.
+    # DR and Pre-Prod environment sheets are included based on checkbox selections;
+    # no pricing is shown — these are purely infrastructure sizing sheets.
     onprem_openshift_path = None
-    onprem_oracle_path = None
+    onprem_kubeadm_path = None
     if client_mode == "onprem":
+        primary_db_type = db_type if db_type else "SQL Server"
+        db_slug = primary_db_type.lower().replace(" ", "_")
+
+        # File 1: OpenShift cluster — user's selected DB
         onprem_openshift_path = generate_onprem_excel(
             metrics=metrics,
             distribution=distribution,
             customer=customer,
             output_dir=output_dir,
-            env_pricing=env_pricing,
-            db_type="SQL Server",
+            db_type=primary_db_type,
             years=years,
-            filename="onprem_openshift_sizing.xlsx"
+            filename=f"onprem_openshift_{db_slug}_sizing.xlsx",
+            cluster_name="OpenShift",
+            include_dr=include_dr,
+            env_names=env_names or [],
         )
-        onprem_oracle_path = generate_onprem_excel(
+
+        # File 2: Kubeadm cluster — same user-selected DB
+        onprem_kubeadm_path = generate_onprem_excel(
             metrics=metrics,
             distribution=distribution,
             customer=customer,
             output_dir=output_dir,
-            env_pricing=env_pricing,
-            db_type="Oracle",
+            db_type=primary_db_type,
             years=years,
-            filename="onprem_kubeadm_oracle_sizing.xlsx"
+            filename=f"onprem_kubeadm_{db_slug}_sizing.xlsx",
+            cluster_name="Kubeadm",
+            include_dr=include_dr,
+            env_names=env_names or [],
         )
 
     return {
-        "cloud_sizing":    sizing_path,
-        "aws_pricing":     pricing_path,   # None for on-prem
-        "gcp_pricing":     pricing_path,   # same workbook contains GCP sheet
-        "comparison":      pricing_path,   # Note: same as gcp/aws paths
-        "onprem_sizing":   onprem_openshift_path,
-        "onprem_oracle_sizing": onprem_oracle_path,
+        "cloud_sizing":         sizing_path,
+        "aws_pricing":          pricing_path,   # None for on-prem
+        "gcp_pricing":          pricing_path,
+        "comparison":           pricing_path,
+        "onprem_sizing":        onprem_openshift_path,
+        "onprem_oracle_sizing": onprem_kubeadm_path,
     }
 
 
@@ -1417,6 +1435,7 @@ def _build_onprem_env_sheet(
     include_reporting_db: bool = False,
     archival_san_gb: float = 0,
     db_type: str = "SQL Server",
+    cluster_name: str = None,   # Override cluster label: "OpenShift" or "Kubeadm"
 ):
     """
     Builds one environment sheet (PROD-XYr, DR, PRE-PROD, UAT, SIT)
@@ -1435,7 +1454,9 @@ def _build_onprem_env_sheet(
     nfs_gb       = int(env_data["nfs_gb"])
     san_gb       = int(env_data["san_gb"])
 
-    cluster_name = "Kubeadm" if db_type == "Oracle" else "OpenShift"
+    # Use explicit override if provided; otherwise derive from db_type
+    if cluster_name is None:
+        cluster_name = "Kubeadm" if db_type == "Oracle" else "OpenShift"
 
     HDR_FILL  = _fill("1F4E79")
     SEC_FILL  = _fill("2E75B6")
@@ -1638,28 +1659,36 @@ def generate_onprem_excel(
     distribution: dict,
     customer:     str  = "Bank-Name",
     output_dir:   str  = "reports",
-    env_pricing:  dict = None,
     db_type:      str  = "SQL Server",
     years:        int  = 5,
     filename:     str  = "onprem_openshift_sizing.xlsx",
+    cluster_name: str  = None,    # "OpenShift" or "Kubeadm" — overrides auto-detect
+    include_dr:   bool = False,   # Add DR sheet only when user checked the DR checkbox
+    env_names:    list = None,    # e.g. ["Pre-Prod", "SIT", "UAT"] — only add checked envs
 ) -> str:
     """
     Generates the OpenShift or Kubeadm On-Premise sizing workbook.
-    Sheets: Data, PROD-1Yr…NYr, DR, PRE-PROD, UAT, SIT
-    Master Nodes are always 3 (constant).
+    Sheets always included: Data, PROD-1Yr…NYr
+    Sheets added conditionally based on user checkbox selections:
+      - DR         → only if include_dr=True
+      - PRE-PROD   → only if "Pre-Prod" in env_names
+      - UAT        → only if "UAT" in env_names
+      - SIT        → only if "SIT" in env_names
+    No pricing data is written — this is a pure infrastructure sizing file.
     Returns the saved file path.
     """
     Path(output_dir).mkdir(parents=True, exist_ok=True)
+    env_names = env_names or []
 
     metrics_by_year = _onprem_metrics_by_year(metrics, years)
 
     wb = Workbook()
     wb.remove(wb.active)   # remove default blank sheet
 
-    # Data sheet
+    # Data sheet — always present
     _build_onprem_data_sheet(wb, metrics_by_year, customer)
 
-    # PROD sheets — one per year
+    # PROD sheets — one per year, always present
     for m in metrics_by_year:
         y = m["year"]
         _build_onprem_env_sheet(
@@ -1672,22 +1701,25 @@ def generate_onprem_excel(
             include_reporting_db=True,
             archival_san_gb=5000,
             db_type=db_type,
+            cluster_name=cluster_name,
         )
 
-    # DR sheet — mirrors last PROD year
-    _build_onprem_env_sheet(
-        wb,
-        sheet_name="DR",
-        env_label="DR",
-        env_data=dict(metrics_by_year[-1]),
-        customer=customer,
-        is_prod=True,
-        include_reporting_db=True,
-        archival_san_gb=5000,
-        db_type=db_type,
-    )
+    # DR sheet — only when the DR checkbox was checked
+    if include_dr:
+        _build_onprem_env_sheet(
+            wb,
+            sheet_name="DR",
+            env_label="DR",
+            env_data=dict(metrics_by_year[-1]),
+            customer=customer,
+            is_prod=True,
+            include_reporting_db=True,
+            archival_san_gb=5000,
+            db_type=db_type,
+            cluster_name=cluster_name,
+        )
 
-    # PRE-PROD — Year-1 scale, 1 worker node, no reporting DB
+    # Pre-Prod / SIT / UAT sheets — only when the respective checkbox was checked
     y1 = metrics_by_year[0]
     preprod_m = dict(y1)
     preprod_m["worker_nodes"] = 1
@@ -1697,12 +1729,14 @@ def generate_onprem_excel(
     preprod_m["db_ram"]       = y1["db_ram"]  // max(y1["db_nodes"], 1)
     preprod_m["nfs_gb"]       = y1["data_gb"] + y1["s3_gb"] + 1*256 + 2*256 + IMAGE_REGISTRY_GB
     preprod_m["san_gb"]       = y1["data_gb"]
-    _build_onprem_env_sheet(
-        wb, "PRE-PROD", "PRE-PROD", preprod_m, customer,
-        is_prod=False, include_reporting_db=False, db_type=db_type,
-    )
 
-    # UAT — fixed small env
+    if "Pre-Prod" in env_names:
+        _build_onprem_env_sheet(
+            wb, "PRE-PROD", "PRE-PROD", preprod_m, customer,
+            is_prod=False, include_reporting_db=False,
+            db_type=db_type, cluster_name=cluster_name,
+        )
+
     uat_m = dict(y1)
     uat_m["worker_nodes"] = 1
     uat_m["infra_nodes"]  = 2
@@ -1713,19 +1747,23 @@ def generate_onprem_excel(
     uat_m["s3_gb"]        = 500
     uat_m["nfs_gb"]       = 500 + 500 + 1*256 + 2*256 + IMAGE_REGISTRY_GB
     uat_m["san_gb"]       = 500
-    _build_onprem_env_sheet(
-        wb, "UAT", "UAT", uat_m, customer,
-        is_prod=False, include_reporting_db=False, db_type=db_type,
-    )
 
-    # SIT — same as UAT
-    sit_m = dict(uat_m)
-    _build_onprem_env_sheet(
-        wb, "SIT", "SIT", sit_m, customer,
-        is_prod=False, include_reporting_db=False, db_type=db_type,
-    )
+    if "UAT" in env_names:
+        _build_onprem_env_sheet(
+            wb, "UAT", "UAT", uat_m, customer,
+            is_prod=False, include_reporting_db=False,
+            db_type=db_type, cluster_name=cluster_name,
+        )
+
+    if "SIT" in env_names:
+        sit_m = dict(uat_m)
+        _build_onprem_env_sheet(
+            wb, "SIT", "SIT", sit_m, customer,
+            is_prod=False, include_reporting_db=False,
+            db_type=db_type, cluster_name=cluster_name,
+        )
 
     out_path = os.path.join(output_dir, filename)
     wb.save(out_path)
-    print(f"[excel_exporter] Saved On-Prem sizing ({db_type}): {out_path}")
+    print(f"[excel_exporter] Saved On-Prem sizing ({cluster_name or db_type}): {out_path}")
     return out_path
