@@ -337,23 +337,23 @@ def _build_db_selection_sheet(wb: Workbook, db_selection: dict, customer: str):
             "hosting": "Self-Hosted on EC2",
             "service": "EC2 r5.8xlarge × 2 + EBS io2",
             "monthly": db_selection.get("postgres_monthly", 0),
-            "reason":  "PostgreSQL is open-source; self-hosted on EC2 avoids RDS licensing premium. HA via Patroni + etcd.",
+            "reason":  "PostgreSQL is open-source; self-hosted on EC2 avoids Managed Database licensing premium. HA via Patroni + etcd.",
         },
         {
             "db":      "SQL Server",
             "type":    "Relational / Commercial",
-            "hosting": "AWS Managed (RDS)",
-            "service": "RDS for SQL Server Multi-AZ",
+            "hosting": "AWS Managed Database",
+            "service": "Managed SQL Server Multi-AZ",
             "monthly": db_selection.get("sqlserver_monthly", 0),
-            "reason":  "SQL Server requires Microsoft licensing; RDS Managed handles patching, backups, and HA automatically.",
+            "reason":  "SQL Server requires Microsoft licensing; Managed Database handles patching, backups, and HA automatically.",
         },
         {
             "db":      "Oracle",
             "type":    "Relational / Commercial",
-            "hosting": "AWS Managed (RDS)",
-            "service": "RDS for Oracle Multi-AZ",
+            "hosting": "AWS Managed Database",
+            "service": "Managed Oracle Multi-AZ",
             "monthly": db_selection.get("oracle_monthly", 0),
-            "reason":  "Oracle licensing is complex; RDS Oracle reduces compliance risk and operational overhead.",
+            "reason":  "Oracle licensing is complex; Managed Oracle reduces compliance risk and operational overhead.",
         },
         {
             "db":      "ElastiCache (Redis)",
@@ -387,7 +387,7 @@ def _build_db_selection_sheet(wb: Workbook, db_selection: dict, customer: str):
 
     for label, hex_c, desc in [
         ("Green",  "E2EFDA", "Self-Hosted on EC2 — lower cost, more control, requires DBA expertise"),
-        ("Yellow", "FFF2CC", "AWS Managed (RDS) — higher cost, zero ops overhead, commercial license compliance"),
+        ("Yellow", "FFF2CC", "AWS Managed Database — higher cost, zero ops overhead, commercial license compliance"),
     ]:
         c1 = ws.cell(row=row, column=1, value=label)
         c1.fill = _fill(hex_c); c1.font = _font(bold=True, size=10)

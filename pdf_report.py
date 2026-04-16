@@ -1036,7 +1036,7 @@ def generate_pdf_report(
          "Pre-Prod/SIT/UAT are Single-AZ to optimize costs while maintaining functional parity."),
         ("Database Licensing",
          "Postgres is Open-Source (No license cost). SQL Server and Oracle are priced on an "
-         "AWS RDS 'License Included' basis. Enterprise/BYOL discounts are not applied."),
+         "Managed Database 'License Included' basis. Enterprise/BYOL discounts are not applied."),
         ("Fallback Rates",
          "If the live AWS Pricing API is unavailable, hardcoded March 2026 on-demand estimates "
          "are used. API-sourced prices are marked with a checkmark; estimated prices are noted "
@@ -1054,7 +1054,7 @@ def generate_pdf_report(
          "to AWS price changes."),
         ("Pre-Prod / SIT / UAT",
          "Environments sized at ~40% of Production infrastructure. PostgreSQL uses self-hosted "
-         "EC2 (Patroni HA). SQL Server / Oracle use AWS RDS Managed. Costs are additive and "
+         "EC2 (Patroni HA). SQL Server / Oracle use AWS Managed Database. Costs are additive and "
          "not included in the Production PUPM."),
         ("Disaster Recovery (DR)",
          "DR sized using a Pilot Light / Warm Standby model at ~50% of Production compute. "

@@ -487,21 +487,21 @@ def calculate_pricing(distribution: dict, metrics: dict, region: str = "us-east-
     pg_hourly, _  = _fetch_ec2_hourly(pricing_client, pg_instance)
     pg_monthly    = round(pg_hourly * 2 * HOURS_PER_MONTH, 2)   # 2 primary nodes
     
-    # helper for sizing RDS based on requested RAM
-    def _rds_instance(ram: float) -> str:
+    # helper for sizing Managed Database based on requested RAM
+    def _managed_db_instance(ram: float) -> str:
         sizes = [(16, "large"), (32, "xlarge"), (64, "2xlarge"), (128, "4xlarge"), (256, "8xlarge"), (512, "16xlarge")]
         for limit, sz in sizes:
             if ram <= limit: return f"db.r5.{sz}"
         return "db.r5.24xlarge"
 
-    # SQL Server = AWS RDS managed (commercial license included)
+    # SQL Server = AWS Managed Database (commercial license included)
     # Estimate: ~$26/mo per GB for Multi-AZ Standard Edition (db.r5 family)
-    sql_instance  = _rds_instance(sql_ram) if sql_ram > 0 else "N/A"
+    sql_instance  = _managed_db_instance(sql_ram) if sql_ram > 0 else "N/A"
     sql_monthly   = round(sql_ram * 26.0, 2) if sql_ram > 0 else 0
 
-    # Oracle = AWS RDS managed (commercial license included)
+    # Oracle = AWS Managed Database (commercial license included)
     # Estimate: ~$22/mo per GB for Multi-AZ SE2 Edition (db.r5 family)
-    oracle_instance = _rds_instance(oracle_ram) if oracle_ram > 0 else "N/A"
+    oracle_instance = _managed_db_instance(oracle_ram) if oracle_ram > 0 else "N/A"
     oracle_monthly  = round(oracle_ram * 22.0, 2) if oracle_ram > 0 else 0
 
     # Elasticache
@@ -516,18 +516,18 @@ def calculate_pricing(distribution: dict, metrics: dict, region: str = "us-east-
             "note":      f"2× {pg_instance} @ ${pg_hourly:.4f}/hr",
         },
         "sql_server": {
-            "hosting":   "AWS Managed (RDS)",
-            "reason":    "Commercial license — RDS reduces compliance risk and ops overhead.",
+            "hosting":   "AWS Managed Database",
+            "reason":    "Commercial license — Managed Database reduces compliance risk and ops overhead.",
             "instance":  f"{sql_instance} (estimated)",
             "monthly":   sql_monthly,
-            "note":      "RDS for SQL Server Multi-AZ (License Included)" if sql_ram > 0 else "Not required",
+            "note":      "Managed SQL Server Multi-AZ (License Included)" if sql_ram > 0 else "Not required",
         },
         "oracle": {
-            "hosting":   "AWS Managed (RDS)",
-            "reason":    "Oracle licensing complexity — RDS Oracle is the safest choice on AWS.",
+            "hosting":   "AWS Managed Database",
+            "reason":    "Oracle licensing complexity — Managed Oracle is the safest choice on AWS.",
             "instance":  f"{oracle_instance} (estimated)",
             "monthly":   oracle_monthly,
-            "note":      "RDS for Oracle SE2 Multi-AZ (License Included)" if oracle_ram > 0 else "Not required",
+            "note":      "Managed Oracle SE2 Multi-AZ (License Included)" if oracle_ram > 0 else "Not required",
         },
         "elasticache": {
             "hosting":   "AWS Managed",
@@ -542,8 +542,8 @@ def calculate_pricing(distribution: dict, metrics: dict, region: str = "us-east-
         "elasticache_monthly": cache_role.get("monthly_usd", 0),
         "summary": (
             "PostgreSQL → Self-Hosted EC2 (open-source). "
-            + ("SQL Server → AWS RDS Managed. " if sql_ram > 0 else "")
-            + ("Oracle → AWS RDS Managed. " if oracle_ram > 0 else "")
+            + ("SQL Server → AWS Managed Database. " if sql_ram > 0 else "")
+            + ("Oracle → AWS Managed Database. " if oracle_ram > 0 else "")
         ),
     }
 
@@ -568,7 +568,7 @@ def calculate_pricing(distribution: dict, metrics: dict, region: str = "us-east-
             "ebs_type":          "gp3 (compute), io2 (SAN/DB)",
             "pricing_date":      "2026-03",
             "inflation_rate":    f"{INFLATION_RATE*100:.0f}% per year",
-            "db_hosting_note":   "PostgreSQL=Self-Hosted EC2, SQL Server/Oracle=AWS RDS Managed",
+            "db_hosting_note":   "PostgreSQL=Self-Hosted EC2, SQL Server/Oracle=AWS Managed Database",
         },
         "warnings": warnings,
     }

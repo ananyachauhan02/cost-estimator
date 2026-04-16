@@ -457,7 +457,7 @@ def render_db_selection(pricing: dict):
         monthly  = info.get("monthly", 0)
         reason   = info.get("reason", "—")
         note     = info.get("note", "—")
-        bg_color = "#e8f5e9" if "Self" in hosting else "#fff8e6" if "RDS" in hosting else "#e3f2fd"
+        bg_color = "#e8f5e9" if "Self" in hosting else "#fff8e6" if "Managed" in hosting else "#e3f2fd"
 
         cols[i].markdown(
             f"""<div style="background:var(--surface); border-radius:12px; padding:14px;

@@ -8,8 +8,8 @@ read from Cloud-sizing-AWS-pgsql-SAAS.xlsx:
   2. DR                    (DR-5Yr sheet, 5-year forecast)
 
 Only relevant for SaaS / PostgreSQL customers.
-For SQL Server / Oracle (managed RDS) customers, DR and Pre-Prod
-use smaller RDS Multi-AZ instances and are priced differently.
+For SQL Server / Oracle (Managed Database) customers, DR and Pre-Prod
+use smaller Managed Database Multi-AZ instances and are priced differently.
 ─────────────────────────────────────────────────────────────
 """
 
@@ -213,27 +213,27 @@ def _price_env(roles: list, client, region: str) -> dict:
     }
 
 
-def _rds_preprod_pricing(db_type: str) -> dict:
-    """Pre-Prod pricing for SQL Server / Oracle uses RDS instead of EC2."""
+def _managed_db_preprod_pricing(db_type: str) -> dict:
+    """Pre-Prod pricing for SQL Server / Oracle uses Managed Database instead of EC2."""
     if db_type == "SQL Server":
-        monthly = 850.0   # db.r5.2xlarge RDS SQL Server Multi-AZ estimate
-        note    = "RDS SQL Server db.r5.2xlarge Single-AZ (Pre-Prod)"
+        monthly = 850.0   # db.r5.2xlarge Managed SQL Server Multi-AZ estimate
+        note    = "Managed SQL Server db.r5.2xlarge Single-AZ (Pre-Prod)"
     else:  # Oracle
         monthly = 1100.0
-        note    = "RDS Oracle db.r5.2xlarge Single-AZ (Pre-Prod)"
+        note    = "Managed Oracle db.r5.2xlarge Single-AZ (Pre-Prod)"
 
     return {"monthly_usd": monthly, "note": note,
             "instance_type": "db.r5.2xlarge", "category": "PGSQL DB"}
 
 
-def _rds_dr_pricing(db_type: str) -> dict:
-    """DR pricing for SQL Server / Oracle — RDS Multi-AZ in DR region."""
+def _managed_db_dr_pricing(db_type: str) -> dict:
+    """DR pricing for SQL Server / Oracle — Managed Database Multi-AZ in DR region."""
     if db_type == "SQL Server":
         monthly = 3200.0
-        note    = "RDS SQL Server db.r5.4xlarge Multi-AZ DR"
+        note    = "Managed SQL Server db.r5.4xlarge Multi-AZ DR"
     else:
         monthly = 4500.0
-        note    = "RDS Oracle db.r5.4xlarge Multi-AZ DR"
+        note    = "Managed Oracle db.r5.4xlarge Multi-AZ DR"
     return {"monthly_usd": monthly, "note": note,
             "instance_type": "db.r5.4xlarge", "category": "Managed DB"}
 
@@ -260,26 +260,26 @@ def price_additional_environments(db_type: str, deployment: str, metrics: dict, 
     if is_postgres:
         preprod = _price_env(PREPROD_ROLES, client, preprod_region)
     else:
-        # Replace PostgreSQL DB roles with RDS equivalent
-        rds_extra  = _rds_preprod_pricing(db_type)
+        # Replace PostgreSQL DB roles with Managed Database equivalent
+        db_extra  = _managed_db_preprod_pricing(db_type)
         non_db_roles = [r for r in PREPROD_ROLES if r["category"] != "PGSQL DB"]
         preprod    = _price_env(non_db_roles, client, preprod_region)
-        preprod["monthly_usd"] += rds_extra["monthly_usd"]
+        preprod["monthly_usd"] += db_extra["monthly_usd"]
         preprod["annual_usd"]   = round(preprod["monthly_usd"] * 12, 2)
-        preprod["priced_roles"].append(rds_extra)
-        preprod["category_totals"]["Managed DB"] = rds_extra["monthly_usd"]
+        preprod["priced_roles"].append(db_extra)
+        preprod["category_totals"]["Managed DB"] = db_extra["monthly_usd"]
 
     # ── DR ────────────────────────────────────────────────────────────────
     if is_postgres:
         dr_result = _price_env(DR_ROLES, client, dr_region)
     else:
-        rds_extra  = _rds_dr_pricing(db_type)
+        db_extra  = _managed_db_dr_pricing(db_type)
         non_db_roles = [r for r in DR_ROLES if r["category"] != "PGSQL DB"]
         dr_result  = _price_env(non_db_roles, client, dr_region)
-        dr_result["monthly_usd"] += rds_extra["monthly_usd"]
+        dr_result["monthly_usd"] += db_extra["monthly_usd"]
         dr_result["annual_usd"]   = round(dr_result["monthly_usd"] * 12, 2)
-        dr_result["priced_roles"].append(rds_extra)
-        dr_result["category_totals"]["Managed DB"] = rds_extra["monthly_usd"]
+        dr_result["priced_roles"].append(db_extra)
+        dr_result["category_totals"]["Managed DB"] = db_extra["monthly_usd"]
 
     # DR 5-year inflation forecast
     dr_forecast = {}
@@ -293,8 +293,8 @@ def price_additional_environments(db_type: str, deployment: str, metrics: dict, 
 
     db_notes = {
         "PostgreSQL":  "Self-Hosted on EC2 — Patroni HA, no licensing cost",
-        "SQL Server":  "AWS RDS Managed — commercial license, automated HA/backups",
-        "Oracle":      "AWS RDS Managed — Oracle BYOL or License Included, automated HA",
+        "SQL Server":  "AWS Managed Database — commercial license, automated HA/backups",
+        "Oracle":      "AWS Managed Database — Oracle BYOL or License Included, automated HA",
     }
 
     return {
