@@ -507,7 +507,6 @@ def generate_pdf_report(
         ("Total DB Nodes",       summ.get("total_db_nodes",     "—")),
         ("Fixed / Managed Roles",len(dist.get("fixed_roles",   []))),
         ("Confidence",           str(summ.get("confidence","—")).title()),
-        ("Distribution Method",  "Groq LLM + Rule-based" if summ.get("confidence") else "Rule-based"),
     ], fill=TEAL_BG, accent=TEAL))
     story.append(SP(8))
 

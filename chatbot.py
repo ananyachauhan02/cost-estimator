@@ -32,10 +32,20 @@ ESTIMATE CONTEXT:
 """
 
 
-def _build_context(pricing: dict | None, distribution: dict, metrics: dict, client_mode: str = "saas") -> str:
-    """Serialize the full estimate into a compact string for the LLM context."""
+def _build_context(pricing: dict | None, distribution: dict, metrics: dict, client_mode: str = "saas", env_pricing: dict | None = None, db_type: str = "PostgreSQL") -> str:
+    """Serialize the full estimate into a compact string for the LLM context.
+    
+    Args:
+        pricing: SaaS cloud pricing dict (for SaaS deployments)
+        distribution: Node distribution result
+        metrics: Sizing metrics
+        client_mode: "saas" or "onprem"
+        env_pricing: Environment pricing dict (for on-prem deployments)
+        db_type: Database type (PostgreSQL, SQL Server, Oracle)
+    """
     ctx = {
         "client_mode": client_mode,
+        "db_type": db_type,
         "node_distribution": {
             "total_worker_nodes": distribution["summary"]["total_worker_nodes"],
             "total_db_nodes":     distribution["summary"]["total_db_nodes"],
@@ -51,14 +61,17 @@ def _build_context(pricing: dict | None, distribution: dict, metrics: dict, clie
             "total_vcpus_workernode":     metrics.get("total_vcpus_workernode"),
             "total_memory_workernode_gb": metrics.get("total_memory_workernode_gb"),
             "postgres_ram_gb":            metrics.get("postgres_ram_gb"),
+            "sql_server_ram_gb":          metrics.get("sql_server_ram_gb"),
+            "oracle_ram_gb":              metrics.get("oracle_ram_gb"),
             "data_size_gb":               metrics.get("data_size_gb"),
-            "s3_size_gb":                metrics.get("s3_size_gb"),
+            "s3_size_gb":                 metrics.get("s3_size_gb"),
             "mobile_users":               metrics.get("mobile_users"),
         },
     }
 
-    # Add pricing data only if available (SaaS mode)
-    if pricing and client_mode == "saas":
+    # Add pricing data based on deployment mode
+    if client_mode == "saas" and pricing:
+        # SaaS: Use cloud pricing
         ctx.update({
             "monthly_cost_usd":  pricing.get("total_monthly_usd"),
             "annual_cost_usd":   pricing.get("total_annual_usd"),
@@ -82,8 +95,33 @@ def _build_context(pricing: dict | None, distribution: dict, metrics: dict, clie
             "inflation_forecast": pricing.get("inflation_forecast", {}),
             "db_selection":       pricing.get("db_selection", {}),
         })
+    elif client_mode == "onprem" and env_pricing:
+        # On-Prem: Use environment pricing
+        ctx.update({
+            "deployment_type": "On-Premise Self-Hosted",
+            "database_note": env_pricing.get("db_note", ""),
+            "deployment_mode": env_pricing.get("deployment", "onprem"),
+            "preprod_monthly": env_pricing.get("preprod_sit_uat", {}).get("monthly_usd"),
+            "preprod_annual": env_pricing.get("preprod_sit_uat", {}).get("annual_usd"),
+            "dr_monthly": env_pricing.get("dr", {}).get("monthly_usd"),
+            "dr_annual": env_pricing.get("dr", {}).get("annual_usd"),
+            "dr_five_year": env_pricing.get("dr", {}).get("five_year_forecast", {}).get("five_year_total"),
+            "combined_monthly": env_pricing.get("combined_monthly"),
+            "db_components": [
+                {
+                    "label": r.get("label"),
+                    "category": r.get("category"),
+                    "nodes": r.get("nodes"),
+                    "instance_type": r.get("instance_type"),
+                    "monthly": r.get("monthly_usd"),
+                    "note": r.get("note"),
+                }
+                for r in env_pricing.get("preprod_sit_uat", {}).get("priced_roles", [])
+                if "Database" in r.get("category", "") or "database" in r.get("label", "").lower()
+            ][:5]
+        })
     else:
-        ctx["note"] = "This is an on-premise deployment. No cloud pricing data is available - this is sizing information only."
+        ctx["note"] = "Pricing data not available for this estimate."
 
     return json.dumps(ctx, indent=2)
 
@@ -119,15 +157,23 @@ def _call_groq(messages: list, context: str) -> str:
     return "❌ All Groq models rate-limited. Try again in a moment."
 
 
-def render_chatbot(pricing: dict | None, distribution: dict, metrics: dict, client_mode: str = "saas"):
+def render_chatbot(pricing: dict | None, distribution: dict, metrics: dict, client_mode: str = "saas", env_pricing: dict | None = None, db_type: str = "PostgreSQL"):
     """
     Render the full chatbot UI inside the Streamlit app.
     Call this after the pricing results are available.
+    
+    Args:
+        pricing: SaaS cloud pricing dict
+        distribution: Node distribution result
+        metrics: Sizing metrics
+        client_mode: "saas" or "onprem"
+        env_pricing: Environment pricing dict (for on-prem)
+        db_type: Database type (PostgreSQL, SQL Server, Oracle)
     """
     st.markdown("---")
     if client_mode == "onprem":
         st.markdown("## 💬 Ask About This Infrastructure Sizing")
-        st.caption("Ask anything about infrastructure requirements, node distribution, architecture, or sizing scenarios.")
+        st.caption("Ask anything about infrastructure requirements, node distribution, architecture, or sizing scenarios. Pricing is for on-premise self-hosted deployments.")
     else:
         st.markdown("## 💬 Ask About This Estimate")
         st.caption("Ask anything about costs, architecture, node distribution, optimisations, or what-if scenarios.")
@@ -136,7 +182,7 @@ def render_chatbot(pricing: dict | None, distribution: dict, metrics: dict, clie
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
     if "chat_context" not in st.session_state:
-        st.session_state.chat_context = _build_context(pricing, distribution, metrics, client_mode)
+        st.session_state.chat_context = _build_context(pricing, distribution, metrics, client_mode, env_pricing, db_type)
 
     # Suggested questions based on client mode
     if client_mode == "onprem":

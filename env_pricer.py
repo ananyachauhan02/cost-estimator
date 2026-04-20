@@ -19,7 +19,12 @@ from __future__ import annotations
 import json
 import math
 import boto3
-from aws_pricer import AWS_REGIONS
+from aws_pricer import (
+    AWS_REGIONS,
+    _init_ec2,
+    _instance_candidates,
+    _resolve_ec2_instance,
+)
 
 HOURS_PER_MONTH  = 730
 INFLATION_RATE   = 0.04
@@ -36,6 +41,16 @@ EC2_FALLBACK = {
     "r5.large":    0.126,  "r5.xlarge":   0.252,  "r5.2xlarge":  0.504,
     "r5.4xlarge":  1.008,  "r5.8xlarge":  2.016,  "r5.12xlarge": 3.024,
     "r5.16xlarge": 4.032,
+    "c6i.large":    0.085,  "c6i.xlarge":   0.170,  "c6i.2xlarge":  0.340,
+    "c6i.4xlarge":  0.680,  "c6i.8xlarge":  1.360,  "c6i.12xlarge": 2.040,
+    "c6i.16xlarge": 2.720,
+    # AMD EPYC for BYOL
+    "c6a.large":    0.085,  "c6a.xlarge":   0.170,  "c6a.2xlarge":  0.340,
+    "c6a.4xlarge":  0.680,  "c6a.8xlarge":  1.360,  "c6a.12xlarge": 2.040,
+    "c6a.16xlarge": 2.720,
+    "r6a.large":    0.110,  "r6a.xlarge":   0.220,  "r6a.2xlarge":  0.440,
+    "r6a.4xlarge":  0.880,  "r6a.8xlarge":  1.760,  "r6a.12xlarge": 2.640,
+    "r6a.16xlarge": 3.520,
 }
 EBS_GP3_PER_GB      = 0.08
 EBS_IO2_PER_GB      = 0.125
@@ -51,17 +66,9 @@ CLOUDWATCH_PER_NODE = 3.50
 
 # ── Instance sizing helper ────────────────────────────────────────────────
 
-def _ec2_instance(vcpu: int, ram_gb: float) -> str:
-    """Pick smallest fitting EC2 instance for given vCPU + RAM."""
-    family = "r5" if (ram_gb / max(vcpu, 1)) > 8 else "m5"
-    for c, r, sz in [
-        (2, 8, "large"), (4, 16, "xlarge"), (8, 32, "2xlarge"),
-        (16, 64, "4xlarge"), (32, 128, "8xlarge"), (48, 192, "12xlarge"),
-        (64, 256, "16xlarge"),
-    ]:
-        if vcpu <= c and ram_gb <= r:
-            return f"{family}.{sz}"
-    return f"{family}.16xlarge"
+def _ec2_instance(vcpu: int, ram_gb: float, family_hint: str = "") -> str:
+    """Pick preferred EC2 instance type from the shared Intel/AMD family logic."""
+    return _instance_candidates(vcpu, ram_gb, family_hint)[0]
 
 
 def _init_pricing():
@@ -107,9 +114,11 @@ def _build_env_roles(
     scale:      float,
     env_label:  str,
     region:     str,
-    client,
+    pricing_client,
+    ec2_client,
     db_type:    str = "PostgreSQL",
     single_az:  bool = True,
+    deployment: str = "saas",  # "saas" or "onprem"
 ) -> list:
     """
     Build a list of priced roles for one environment (Pre-Prod or DR),
@@ -117,6 +126,9 @@ def _build_env_roles(
 
     scale=0.40 → Pre-Prod/SIT/UAT
     scale=0.60 → DR
+    
+    deployment="onprem" → Uses EC2 instances for ALL components (SQL Server BYOL on AMD)
+    deployment="saas"   → Uses RDS for databases (PostgreSQL only)
     """
     mult = AWS_REGIONS.get(region, {}).get("multiplier", 1.0)
 
@@ -162,25 +174,46 @@ def _build_env_roles(
     worker_storage = 256 if scale >= 0.55 else 300
 
     # ── EC2 instance types ─────────────────────────────────────────────────
-    worker_itype = _ec2_instance(env_vcpu_per_node, env_ram_per_node)
-    db_itype     = _ec2_instance(env_db_vcpu, env_db_ram)
+    worker_itype, worker_hr, worker_from_api = _resolve_ec2_instance(
+        env_vcpu_per_node, env_ram_per_node, "", pricing_client, ec2_client, region
+    )
+    
+    # For on-prem SQL Server BYOL, use AMD EPYC instances (more cost-effective)
+    if deployment == "onprem" and db_type == "SQL Server":
+        db_itype, db_hr, db_from_api = _resolve_ec2_instance(
+            env_db_vcpu, env_db_ram, "amd", pricing_client, ec2_client, region
+        )
+    else:
+        db_itype, db_hr, db_from_api = _resolve_ec2_instance(
+            env_db_vcpu, env_db_ram, "", pricing_client, ec2_client, region
+        )
+    
     bastion_itype= "t3.medium"
-
-    worker_hr, _ = _ec2_hourly(client, worker_itype, region)
-    db_hr,     _ = _ec2_hourly(client, db_itype,     region)
-    bastion_hr,_ = _ec2_hourly(client, bastion_itype, region)
+    bastion_hr,_ = _ec2_hourly(pricing_client, bastion_itype, region)
 
     priced = []
-
-    # ── EKS / K8s ──────────────────────────────────────────────────────────
-    priced.append({
-        "category": "Kubernetes",
-        "label":    f"Cloud Managed K8s ({env_label})",
-        "nodes": 1, "vcpu": 0, "ram": 0,
-        "instance_type": "EKS",
-        "monthly_usd": EKS_MONTHLY,
-        "note": "EKS managed control plane",
-    })
+    
+    # For on-prem deployments, use simpler infrastructure (no managed EKS)
+    if deployment == "onprem":
+        # Skip EKS, use simple K8s cluster marker
+        priced.append({
+            "category": "Kubernetes",
+            "label":    f"Self-Managed K8s / OpenShift ({env_label})",
+            "nodes": 1, "vcpu": 0, "ram": 0,
+            "instance_type": "K8s-Self-Managed",
+            "monthly_usd": 0.00,
+            "note": "Self-hosted Kubernetes (no managed service cost)",
+        })
+    else:
+        # ── EKS / K8s ──────────────────────────────────────────────────────
+        priced.append({
+            "category": "Kubernetes",
+            "label":    f"Cloud Managed K8s ({env_label})",
+            "nodes": 1, "vcpu": 0, "ram": 0,
+            "instance_type": "EKS",
+            "monthly_usd": EKS_MONTHLY,
+            "note": "EKS managed control plane",
+        })
 
     # ── Worker nodes ───────────────────────────────────────────────────────
     worker_compute = worker_hr * env_worker_nodes * HOURS_PER_MONTH
@@ -194,6 +227,7 @@ def _build_env_roles(
         "hourly_usd": round(worker_hr, 4),
         "monthly_usd": round(worker_compute + worker_storage_cost, 2),
         "note": f"{env_worker_nodes}× {worker_itype} @ ${worker_hr:.4f}/hr + {worker_storage}GB EBS",
+        "from_api": worker_from_api,
     })
 
     # ── Infra / monitoring workers (Grafana + EFK) ─────────────────────────
@@ -201,8 +235,9 @@ def _build_env_roles(
     infra_nodes = 2 if scale >= 0.55 else 1
     infra_vcpu, infra_ram = 8, 16
     infra_storage = 512
-    infra_itype = _ec2_instance(infra_vcpu, infra_ram)
-    infra_hr, _ = _ec2_hourly(client, infra_itype, region)
+    infra_itype, infra_hr, infra_from_api = _resolve_ec2_instance(
+        infra_vcpu, infra_ram, "", pricing_client, ec2_client, region
+    )
     infra_compute = infra_hr * infra_nodes * HOURS_PER_MONTH
     infra_stor_cost = infra_storage * infra_nodes * EBS_GP3_PER_GB * mult
     priced.append({
@@ -214,6 +249,7 @@ def _build_env_roles(
         "hourly_usd": round(infra_hr, 4),
         "monthly_usd": round(infra_compute + infra_stor_cost, 2),
         "note": f"{infra_nodes}× {infra_itype} @ ${infra_hr:.4f}/hr + {infra_storage}GB EBS",
+        "from_api": infra_from_api,
     })
 
     # ── Database primary nodes ─────────────────────────────────────────────
@@ -232,6 +268,7 @@ def _build_env_roles(
         "hourly_usd": round(db_hr, 4),
         "monthly_usd": round(db_compute + db_stor_cost, 2),
         "note": f"{env_db_nodes}× {db_itype} @ ${db_hr:.4f}/hr + 300GB EBS",
+        "from_api": db_from_api,
     })
 
     # ── SAN storage ────────────────────────────────────────────────────────
@@ -399,7 +436,9 @@ def price_additional_environments(
         "is_saas": bool,
     }
     """
-    client    = _init_pricing()
+    pricing_client = _init_pricing()
+    preprod_ec2_client = _init_ec2(preprod_region)
+    dr_ec2_client = _init_ec2(dr_region)
     is_saas   = db_type == "PostgreSQL"
 
     # ── Pre-Prod / SIT / UAT ──────────────────────────────────────────────
@@ -408,7 +447,8 @@ def price_additional_environments(
         scale=PREPROD_SCALE,
         env_label="Pre-Prod",
         region=preprod_region,
-        client=client,
+        pricing_client=pricing_client,
+        ec2_client=preprod_ec2_client,
         db_type=db_type,
         single_az=True,
     )
@@ -427,7 +467,8 @@ def price_additional_environments(
         scale=DR_SCALE,
         env_label="DR",
         region=dr_region,
-        client=client,
+        pricing_client=pricing_client,
+        ec2_client=dr_ec2_client,
         db_type=db_type,
         single_az=False,   # DR uses Multi-AZ (2 DB nodes)
     )
@@ -454,9 +495,18 @@ def price_additional_environments(
     }
 
     db_notes = {
-        "PostgreSQL": "Self-Hosted on EC2 — Patroni HA, no licensing cost",
-        "SQL Server": "AWS RDS Managed — commercial license, automated HA/backups",
-        "Oracle":     "AWS RDS Managed — Oracle BYOL or License Included, automated HA",
+        "PostgreSQL": (
+            "Self-Hosted on EC2 — Patroni HA, no licensing cost" if deployment == "saas"
+            else "Self-Hosted on EC2 — Patroni HA, no licensing cost (On-Premise)"
+        ),
+        "SQL Server": (
+            "AWS RDS Managed — commercial license, automated HA/backups" if deployment == "saas"
+            else "EC2 Self-Hosted (AMD EPYC) — SQL Server BYOL + AWS Owned Enterprise License"
+        ),
+        "Oracle": (
+            "AWS RDS Managed — Oracle BYOL or License Included, automated HA" if deployment == "saas"
+            else "EC2 Self-Hosted (AMD EPYC) — Oracle BYOL (On-Premise)"
+        ),
     }
 
     return {
@@ -464,6 +514,7 @@ def price_additional_environments(
         "dr":               dr_result,
         "combined_monthly": round(preprod_total + dr_total, 2),
         "db_type":          db_type,
+        "deployment":       deployment,
         "db_note":          db_notes.get(db_type, ""),
         "is_saas":          is_saas,
     }

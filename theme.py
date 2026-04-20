@@ -385,35 +385,43 @@ input, textarea, select,
   background: transparent !important;
   background-color: transparent !important;
   color: var(--text) !important;
-  border: 1px solid var(--border2) !important;
-  border-radius: 10px !important;
+  caret-color: var(--text) !important;
+  border: none !important;
+  border-radius: 0 !important;
   font-family: var(--ff) !important;
   font-size: 12px !important;
   padding: 0.75rem !important;
   box-shadow: none !important;
 }
 
-div[data-testid="stTextInput"] > div,
 div[data-testid="stTextInput"] > div > div,
-div[data-testid="stTextInput"] > div > div > input,
-[data-testid="stTextInput"] input,
-[data-testid="stTextInput"] textarea,
-[data-testid="stTextInput"] [role="textbox"],
-[data-testid="stTextInput"] *,
-[data-testid="stTextInput"] div,
-[data-testid="stTextInput"] span,
-[data-testid="stTextInput"] p {
-  background: transparent !important;
-  background-color: transparent !important;
+div[data-testid="stNumberInput"] > div > div {
+  background: var(--bg3) !important;
+  background-color: var(--bg3) !important;
   box-shadow: none !important;
-  border: none !important;
+  border: 1px solid var(--border2) !important;
+  border-radius: 10px !important;
+  min-height: 44px !important;
+}
+
+[data-testid="stTextInput"] input::placeholder,
+[data-testid="stTextInput"] textarea::placeholder,
+[data-testid="stNumberInput"] input::placeholder {
+  color: var(--text3) !important;
+  opacity: 1 !important;
 }
 
 [data-testid="stTextInput"] input:focus,
+[data-testid="stTextInput"] textarea:focus,
 [data-testid="stNumberInput"] input:focus {
-  border-color: var(--accent) !important;
+  caret-color: var(--text) !important;
   box-shadow: none !important;
   outline: none !important;
+}
+
+div[data-testid="stTextInput"]:focus-within > div > div,
+div[data-testid="stNumberInput"]:focus-within > div > div {
+  border-color: var(--accent) !important;
 }
 
 /* Chat bubbles should be minimal and avoid a separate white text background */
@@ -454,8 +462,44 @@ div[data-testid="stNumberInput"] button {
   background: var(--bg3) !important;
   color: var(--text) !important;
   border: 1px solid var(--border2) !important;
-  border-radius: 8px !important;
+  border-radius: 12px !important;
   font-size: 12px !important;
+  min-height: 44px !important;
+  box-shadow: none !important;
+  transition: var(--trans) !important;
+}
+
+[data-testid="stSelectbox"] > div > div:hover,
+[data-baseweb="select"] > div:hover {
+  border-color: rgba(79,110,247,.35) !important;
+  background: #f8fbff !important;
+}
+
+div[data-testid="stSelectbox"]:focus-within > div > div,
+[data-baseweb="select"]:focus-within > div,
+[data-baseweb="select"] > div:has(input:focus) {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(79,110,247,.10) !important;
+  background: #f8fbff !important;
+}
+
+[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+[data-testid="stSelectbox"] [data-baseweb="select"] span,
+[data-testid="stSelectbox"] [data-baseweb="select"] div {
+  font-family: var(--ff) !important;
+  color: var(--text) !important;
+}
+
+[data-testid="stSelectbox"] [data-baseweb="select"] > div > div,
+[data-baseweb="select"] > div > div {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+[data-testid="stSelectbox"] svg,
+[data-baseweb="select"] svg {
+  color: var(--text3) !important;
+  fill: var(--text3) !important;
 }
 
 [data-baseweb="popover"],
@@ -467,6 +511,70 @@ li[role="option"] {
   background: var(--bg2) !important;
   color: var(--text) !important;
   border-color: var(--border2) !important;
+}
+
+[data-baseweb="popover"] > div,
+[data-baseweb="popover"] [role="listbox"],
+[data-baseweb="menu"] {
+  background: var(--bg2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 14px !important;
+  box-shadow: var(--shadow3) !important;
+  padding: 6px !important;
+}
+
+[role="listbox"] {
+  max-height: 320px !important;
+}
+
+[role="option"],
+ul[role="listbox"] li,
+li[role="option"] {
+  border-radius: 10px !important;
+  margin: 2px 0 !important;
+  padding: 10px 12px !important;
+  font-family: var(--ff) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  transition: var(--trans) !important;
+}
+
+[role="option"]:hover,
+ul[role="listbox"] li:hover,
+li[role="option"]:hover {
+  background: var(--accent-lt) !important;
+  color: var(--text) !important;
+}
+
+[role="option"]:hover *,
+ul[role="listbox"] li:hover *,
+li[role="option"]:hover *,
+[role="option"][data-highlighted="true"],
+[role="option"][data-highlighted="true"] *,
+li[role="option"][data-highlighted="true"],
+li[role="option"][data-highlighted="true"] *,
+[data-baseweb="menu"] [aria-selected="false"]:hover,
+[data-baseweb="menu"] [aria-selected="false"]:hover *,
+[data-baseweb="menu"] [aria-selected="false"][data-highlighted="true"],
+[data-baseweb="menu"] [aria-selected="false"][data-highlighted="true"] * {
+  background: var(--accent-lt) !important;
+  color: var(--text) !important;
+}
+
+[role="option"][aria-selected="true"],
+ul[role="listbox"] li[aria-selected="true"],
+li[role="option"][aria-selected="true"] {
+  background: linear-gradient(180deg, rgba(79,110,247,.12), rgba(79,110,247,.08)) !important;
+  color: var(--accent) !important;
+  font-weight: 700 !important;
+}
+
+[role="option"][aria-selected="true"] *,
+ul[role="listbox"] li[aria-selected="true"] *,
+li[role="option"][aria-selected="true"] * {
+  color: var(--accent) !important;
+  background: transparent !important;
 }
 
 /* Hide caret on selectbox */

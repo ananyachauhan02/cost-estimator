@@ -62,10 +62,48 @@ DEFAULTS = {
     "comparison":          None,
     "selected_aws_region": "us-east-1",
     "selected_gcp_region": "us-central1",
+    "last_gcp_sync_aws_region": "us-east-1",
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+AWS_TO_GCP_REGION_MAP = {
+    # Americas
+    "us-east-1": "us-central1",
+    "us-east-2": "us-east5",
+    "us-west-1": "us-west1",
+    "us-west-2": "us-west1",
+    "ca-central-1": "northamerica-northeast1",
+    "ca-west-1": "northamerica-northeast2",
+    "sa-east-1": "southamerica-east1",
+    # Europe
+    "eu-central-1": "europe-west3",
+    "eu-central-2": "europe-west6",
+    "eu-west-1": "europe-west1",
+    "eu-west-2": "europe-west2",
+    "eu-west-3": "europe-west9",
+    "eu-north-1": "europe-north1",
+    "eu-south-1": "europe-west8",
+    "eu-south-2": "europe-southwest1",
+    # Asia Pacific
+    "ap-south-1": "asia-south1",
+    "ap-south-2": "asia-south2",
+    "ap-northeast-1": "asia-northeast1",
+    "ap-northeast-2": "asia-northeast3",
+    "ap-northeast-3": "asia-northeast2",
+    "ap-southeast-1": "asia-southeast1",
+    "ap-southeast-2": "australia-southeast1",
+    "ap-southeast-3": "asia-southeast2",
+    "ap-southeast-4": "australia-southeast2",
+    "ap-southeast-5": "asia-southeast1",
+    "ap-east-1": "asia-east2",
+    # Middle East & Africa
+    "me-south-1": "me-central2",
+    "me-central-1": "me-central1",
+    "af-south-1": "af-south1",
+    "il-central-1": "me-west1",
+}
 
 # ── Top Navigation ────────────────────────────────────────────────────────
 client = st.session_state.get("selected_client")
@@ -255,6 +293,17 @@ if client_mode == "saas":
     st.session_state.selected_aws_region = aws_region_sel
 
     gcp_region_options = list(GCP_REGIONS.keys())
+    previous_sync_aws = st.session_state.get("last_gcp_sync_aws_region", "us-east-1")
+    previous_gcp_default = AWS_TO_GCP_REGION_MAP.get(previous_sync_aws, "us-central1")
+    suggested_gcp_region = AWS_TO_GCP_REGION_MAP.get(aws_region_sel, "us-central1")
+    current_gcp_region = st.session_state.get("selected_gcp_region", "us-central1")
+
+    # Keep an explicit user-picked GCP region, but auto-sync when the current
+    # selection still matches the previous AWS-driven default.
+    if current_gcp_region == previous_gcp_default and suggested_gcp_region in gcp_region_options:
+        st.session_state.selected_gcp_region = suggested_gcp_region
+        st.session_state.gcp_region_sel = suggested_gcp_region
+
     gcp_region_idx     = gcp_region_options.index(
         st.session_state.selected_gcp_region
         if st.session_state.selected_gcp_region in gcp_region_options else "us-central1"
@@ -270,6 +319,7 @@ if client_mode == "saas":
     gcp_mult = GCP_REGIONS[gcp_region_sel]["multiplier"]
     reg2.caption(f"Cost multiplier vs us-central1: **{gcp_mult:.3f}×**")
     st.session_state.selected_gcp_region = gcp_region_sel
+    st.session_state.last_gcp_sync_aws_region = aws_region_sel
     
     # Optional DR Region selection
     if include_dr:
@@ -325,13 +375,14 @@ with st.expander("📈 Year 1 Base Values", expanded=True):
     with nu_yoy_col:
         yoy_named_users = _yoy_select("YoY %", "yoy_named_users", default_pct=5)
 
-    # ── Concurrent (auto) + Mobile row ──
-    concurrent_y1_auto = int(named_users_y1 * 0.30)
-    cu_auto_col, cu_pad_col, mob_val_col, mob_yoy_col = st.columns([2, 1, 2, 1])
-    cu_auto_col.number_input(
-        f"Concurrent Users ≈ {concurrent_y1_auto:,}", value=concurrent_y1_auto,
-        disabled=True, help="Auto: 30% of named users"
-    )
+    # ── Concurrent Users row (with YoY) ──
+    cu_val_col, cu_yoy_col, cu_pad_col = st.columns([3, 1, 2])
+    concurrent_y1 = cu_val_col.number_input("Concurrent Users (Y1)", min_value=0, value=4650, step=100)
+    with cu_yoy_col:
+        yoy_concurrent = _yoy_select("YoY %", "yoy_concurrent", default_pct=5)
+
+    # ── Mobile row ──
+    mob_val_col, mob_yoy_col = st.columns([3, 1])
     mobile_y1 = mob_val_col.number_input("Concurrent Mobile Users (Y1)", min_value=0, value=4050, step=100)
     with mob_yoy_col:
         yoy_mobile = _yoy_select("YoY %", "yoy_mobile", default_pct=5)
@@ -357,12 +408,12 @@ with st.expander("📈 Year 1 Base Values", expanded=True):
 # Build the YOY dict from widget values
 YOY = dict(
     named_users=yoy_named_users,
-    concurrent=yoy_named_users,   # concurrent inherits named-users rate
-    mobile=yoy_mobile,            # mobile users has its own independent rate
+    concurrent=yoy_concurrent,       # concurrent now has its own independent YoY rate
+    mobile=yoy_mobile,               # mobile users has its own independent rate
     customers=yoy_customers,
     leads=yoy_leads,
     cases=yoy_cases,
-    product_hold=0.05,            # product holdings — fixed at 5% (no explicit widget needed)
+    product_hold=0.05,               # product holdings — fixed at 5% (no explicit widget needed)
 )
 
 with st.expander("🔧 Detailed Sizing Assumptions", expanded=False):
@@ -449,7 +500,7 @@ workload_profile = {
 # ══════════════════════════════════════════════════════════════════════════
 years_list       = [f"Y{y+1}" for y in range(years)]
 named_users_arr  = [named_users_y1]
-concurrent_arr   = [concurrent_y1_auto]
+concurrent_arr   = [concurrent_y1]
 mobile_arr       = [mobile_y1]
 customers_arr    = [total_customers_y1]
 leads_arr        = [leads_y1]
@@ -510,12 +561,12 @@ btn_label = (
 st.markdown('<span class="green-btn-target"></span>', unsafe_allow_html=True)
 if st.button(btn_label, type="primary", use_container_width=True, key="btn_generate"):
     inputs = {
-        "named_users": named_users_y1, "concurrent_users": concurrent_y1_auto,
+        "named_users": named_users_y1, "concurrent_users": concurrent_y1,
         "total_customers": total_customers_y1, "leads": leads_y1,
         "cases": cases_y1, "mobile_users": mobile_y1,
         # YOY growth rates → written to column I of Customer Volumes sheet
         "yoy_named_users": yoy_named_users,
-        "yoy_concurrent":  yoy_named_users,   # concurrent is auto-derived → same rate as named users
+        "yoy_concurrent":  yoy_concurrent,    # concurrent now uses its own YoY rate
         "yoy_customers":   yoy_customers,
         "yoy_leads":       yoy_leads,
         "yoy_cases":       yoy_cases,
@@ -567,8 +618,10 @@ if st.button(btn_label, type="primary", use_container_width=True, key="btn_gener
 
             if env_multiplier > 0 or include_dr:
                 with st.spinner("Step 5 — Pricing environments…"):
+                    # Pass deployment mode: "saas" for cloud or "onprem" for on-premise
+                    deployment_mode = "saas" if client_mode == "saas" else "onprem"
                     env_pricing = price_additional_environments(
-                        db_type="PostgreSQL", deployment="saas", metrics=metrics,
+                        db_type=db_type, deployment=deployment_mode, metrics=metrics,
                         preprod_region=aws_region_sel, dr_region=dr_region_sel
                     )
                     if env_multiplier == 0:

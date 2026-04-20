@@ -50,6 +50,7 @@ AWS_REGIONS = {
     "ap-southeast-2": {"label": "Asia Pacific (Sydney)",       "multiplier": 1.130},
     "ap-southeast-3": {"label": "Asia Pacific (Jakarta)",      "multiplier": 1.100},
     "ap-southeast-4": {"label": "Asia Pacific (Melbourne)",    "multiplier": 1.130},
+    "ap-southeast-5": {"label": "Asia Pacific (Malaysia)",     "multiplier": 1.100},
     "ap-east-1":      {"label": "Asia Pacific (Hong Kong)",    "multiplier": 1.180},
     
     # Middle East & Africa
@@ -74,8 +75,28 @@ EC2_FALLBACK = {
     "r5.4xlarge":   1.008,
     "r5.8xlarge":   2.016,
     "r5.12xlarge":  3.024,
-    "r5.16xlarge":  4.032,
-    "cache.r6g.large":   0.166,
+    "r5.16xlarge":  4.032,    # AMD EPYC instances – cost-optimized for BYOL (SQL Server, Oracle)
+    "c6i.large":    0.085,
+    "c6i.xlarge":   0.170,
+    "c6i.2xlarge":  0.340,
+    "c6i.4xlarge":  0.680,
+    "c6i.8xlarge":  1.360,
+    "c6i.12xlarge": 2.040,
+    "c6i.16xlarge": 2.720,
+    "c6a.large":    0.085,
+    "c6a.xlarge":   0.170,
+    "c6a.2xlarge":  0.340,
+    "c6a.4xlarge":  0.680,
+    "c6a.8xlarge":  1.360,
+    "c6a.12xlarge": 2.040,
+    "c6a.16xlarge": 2.720,
+    "r6a.large":    0.110,
+    "r6a.xlarge":   0.220,
+    "r6a.2xlarge":  0.440,
+    "r6a.4xlarge":  0.880,
+    "r6a.8xlarge":  1.760,
+    "r6a.12xlarge": 2.640,
+    "r6a.16xlarge": 3.520,    "cache.r6g.large":   0.166,
     "cache.r6g.xlarge":  0.332,
     "cache.r6g.2xlarge": 0.665,
 }
@@ -92,31 +113,75 @@ ALB_BASE_MONTHLY   = 16.43
 NAT_PER_GB         = 0.045
 NAT_BASE_MONTHLY   = 32.00   # ~2 NAT gateways base
 CLOUDWATCH_PER_NODE = 3.50
+_INSTANCE_OFFERING_CACHE: dict[tuple[str, str], bool | None] = {}
 
 
 # ── Instance type selection ───────────────────────────────────────────────
 
-def _ec2_instance(vcpu: int, ram_gb: float, family_hint: str = "") -> str:
-    """Pick best-fit EC2 instance type from vCPU + RAM."""
-    hint = family_hint.lower()
-    if "memory" in hint or (ram_gb / max(vcpu, 1)) > 8:
-        family = "r5"
-    else:
-        family = "m5"
-
-    sizes = [
-        (2,  8,   "large"),
-        (4,  16,  "xlarge"),
-        (8,  32,  "2xlarge"),
-        (16, 64,  "4xlarge"),
-        (32, 128, "8xlarge"),
-        (48, 192, "12xlarge"),
+INSTANCE_SIZE_TABLES = {
+    "c6i": [
+        (2, 4, "large"), (4, 8, "xlarge"), (8, 16, "2xlarge"),
+        (16, 32, "4xlarge"), (32, 64, "8xlarge"), (48, 96, "12xlarge"),
+        (64, 128, "16xlarge"),
+    ],
+    "c6a": [
+        (2, 4, "large"), (4, 8, "xlarge"), (8, 16, "2xlarge"),
+        (16, 32, "4xlarge"), (32, 64, "8xlarge"), (48, 96, "12xlarge"),
+        (64, 128, "16xlarge"),
+    ],
+    "m5": [
+        (2, 8, "large"), (4, 16, "xlarge"), (8, 32, "2xlarge"),
+        (16, 64, "4xlarge"), (32, 128, "8xlarge"), (48, 192, "12xlarge"),
         (64, 256, "16xlarge"),
-    ]
-    for c, r, size in sizes:
-        if vcpu <= c and ram_gb <= r:
-            return f"{family}.{size}"
-    return f"{family}.16xlarge"
+    ],
+    "r5": [
+        (2, 16, "large"), (4, 32, "xlarge"), (8, 64, "2xlarge"),
+        (16, 128, "4xlarge"), (32, 256, "8xlarge"), (48, 384, "12xlarge"),
+        (64, 512, "16xlarge"),
+    ],
+    "r6a": [
+        (2, 16, "large"), (4, 32, "xlarge"), (8, 64, "2xlarge"),
+        (16, 128, "4xlarge"), (32, 256, "8xlarge"), (48, 384, "12xlarge"),
+        (64, 512, "16xlarge"),
+    ],
+}
+
+
+def _preferred_families(vcpu: int, ram_gb: float, family_hint: str = "") -> list[str]:
+    """Return ordered family preferences for the requested shape."""
+    hint = (family_hint or "").lower()
+    ram_to_vcpu = ram_gb / max(vcpu, 1)
+    is_memory = "memory" in hint or ram_to_vcpu > 8
+    is_compute = "compute" in hint or ram_to_vcpu <= 2
+
+    if "amd" in hint or "byol" in hint:
+        return ["r6a", "r5"] if is_memory else ["c6a", "c6i", "m5"]
+    if "intel" in hint:
+        return ["r5", "r6a"] if is_memory else ["c6i", "m5", "c6a"]
+    if is_memory:
+        return ["r5", "r6a", "m5"]
+    if is_compute:
+        return ["c6i", "c6a", "m5"]
+    if "general" in hint:
+        return ["m5", "c6i", "c6a"]
+    return ["m5", "c6i", "c6a"]
+
+
+def _instance_candidates(vcpu: int, ram_gb: float, family_hint: str = "") -> list[str]:
+    """Return ordered instance-type candidates across Intel/AMD families."""
+    candidates = []
+    for family in _preferred_families(vcpu, ram_gb, family_hint):
+        for c, r, size in INSTANCE_SIZE_TABLES[family]:
+            if vcpu <= c and ram_gb <= r:
+                candidates.append(f"{family}.{size}")
+                break
+        else:
+            candidates.append(f"{family}.16xlarge")
+    return candidates
+
+def _ec2_instance(vcpu: int, ram_gb: float, family_hint: str = "") -> str:
+    """Pick best-fit preferred EC2 instance type from vCPU + RAM."""
+    return _instance_candidates(vcpu, ram_gb, family_hint)[0]
 
 
 def _s3_instance(s3_gb: float) -> str:
@@ -131,6 +196,13 @@ def _cache_instance(ram_gb: float) -> str:
     return "cache.r6g.2xlarge"
 
 
+def _ec2_sql_server_byol(vcpu: int, ram_gb: float) -> str:
+    """Pick AMD EPYC instance for SQL Server BYOL (more cost-effective than Intel).
+    SQL Server licensing is expensive, so choosing AMD EPYC reduces overall TCO.
+    """
+    return _ec2_instance(vcpu, ram_gb, family_hint="amd")
+
+
 # ── AWS Pricing API helpers ───────────────────────────────────────────────
 
 def _init_pricing(region: str = "us-east-1"):
@@ -138,6 +210,14 @@ def _init_pricing(region: str = "us-east-1"):
         return boto3.client("pricing", region_name="us-east-1")  # Pricing API always in us-east-1
     except Exception as e:
         print(f"[aws_pricer] Could not init pricing client: {e}")
+        return None
+
+
+def _init_ec2(region: str = "us-east-1"):
+    try:
+        return boto3.client("ec2", region_name=region)
+    except Exception as e:
+        print(f"[aws_pricer] Could not init EC2 client for {region}: {e}")
         return None
 
 
@@ -171,6 +251,87 @@ def _fetch_ec2_hourly(client, instance_type: str, region: str = "us-east-1") -> 
     return EC2_FALLBACK.get(instance_type, 0.384), False
 
 
+def _fetch_ec2_hourly_api(client, instance_type: str, region: str = "us-east-1") -> tuple[float | None, bool]:
+    """Return API price only; None means not returned for that region/type."""
+    if not client:
+        return None, False
+    try:
+        resp = client.get_products(
+            ServiceCode="AmazonEC2",
+            Filters=[
+                {"Type": "TERM_MATCH", "Field": "instanceType",    "Value": instance_type},
+                {"Type": "TERM_MATCH", "Field": "regionCode",      "Value": region},
+                {"Type": "TERM_MATCH", "Field": "tenancy",         "Value": "Shared"},
+                {"Type": "TERM_MATCH", "Field": "operatingSystem", "Value": "Linux"},
+                {"Type": "TERM_MATCH", "Field": "preInstalledSw",  "Value": "NA"},
+                {"Type": "TERM_MATCH", "Field": "capacitystatus",  "Value": "Used"},
+            ],
+        )
+        if resp["PriceList"]:
+            item  = json.loads(resp["PriceList"][0])
+            term  = next(iter(item["terms"]["OnDemand"].values()))
+            dim   = next(iter(term["priceDimensions"].values()))
+            price = float(dim["pricePerUnit"]["USD"])
+            if price > 0:
+                return price, True
+    except Exception as e:
+        print(f"[aws_pricer] EC2 region availability check failed for {instance_type}: {e}")
+    return None, False
+
+
+def _instance_type_offered(ec2_client, instance_type: str, region: str = "us-east-1") -> bool | None:
+    """Return True/False when EC2 confirms regional offering; None if unknown."""
+    cache_key = (region, instance_type)
+    if cache_key in _INSTANCE_OFFERING_CACHE:
+        return _INSTANCE_OFFERING_CACHE[cache_key]
+
+    if not ec2_client:
+        _INSTANCE_OFFERING_CACHE[cache_key] = None
+        return None
+
+    try:
+        resp = ec2_client.describe_instance_type_offerings(
+            LocationType="region",
+            Filters=[
+                {"Name": "instance-type", "Values": [instance_type]},
+                {"Name": "location", "Values": [region]},
+            ],
+            MaxResults=5,
+        )
+        offered = bool(resp.get("InstanceTypeOfferings"))
+        _INSTANCE_OFFERING_CACHE[cache_key] = offered
+        return offered
+    except Exception as e:
+        print(f"[aws_pricer] EC2 offering check failed for {instance_type} in {region}: {e}")
+        _INSTANCE_OFFERING_CACHE[cache_key] = None
+        return None
+
+
+def _resolve_ec2_instance(vcpu: int, ram_gb: float, family_hint: str, pricing_client, ec2_client=None, region: str = "us-east-1") -> tuple[str, float, bool]:
+    """Pick preferred instance, skipping types not offered in the selected region."""
+    mult = AWS_REGIONS.get(region, {}).get("multiplier", 1.0)
+    candidates = _instance_candidates(vcpu, ram_gb, family_hint)
+    checked_candidates: list[str] = []
+
+    for instance_type in candidates:
+        offered = _instance_type_offered(ec2_client, instance_type, region)
+        if offered is False:
+            continue
+        checked_candidates.append(instance_type)
+        if pricing_client:
+            hourly, from_api = _fetch_ec2_hourly_api(pricing_client, instance_type, region)
+            if hourly is not None:
+                return instance_type, hourly, from_api
+
+    fallback_candidates = checked_candidates or candidates
+    for instance_type in fallback_candidates:
+        if instance_type in EC2_FALLBACK:
+            return instance_type, round(EC2_FALLBACK[instance_type] * mult, 6), False
+
+    preferred = fallback_candidates[0]
+    return preferred, round(EC2_FALLBACK.get(preferred, 0.384) * mult, 6), False
+
+
 def _fetch_elasticache_hourly(client, instance_type: str, region: str = "us-east-1") -> tuple:
     if not client:
         base = EC2_FALLBACK.get(instance_type, 0.166)
@@ -199,7 +360,7 @@ def _fetch_elasticache_hourly(client, instance_type: str, region: str = "us-east
 
 # ── Role → cost mapper ────────────────────────────────────────────────────
 
-def _price_worker_role(role: dict, pricing_client, region: str = "us-east-1") -> dict:
+def _price_worker_role(role: dict, pricing_client, ec2_client, region: str = "us-east-1") -> dict:
     """Price a scalable K8s worker role."""
     vcpu    = role.get("vcpu_per_node", 0)
     ram     = role.get("ram_per_node", 0)
@@ -212,8 +373,7 @@ def _price_worker_role(role: dict, pricing_client, region: str = "us-east-1") ->
                 "compute_monthly_usd": 0, "storage_monthly_usd": 0,
                 "monthly_usd": 0, "from_api": False}
 
-    instance_type = _ec2_instance(vcpu, ram, family)
-    hourly, from_api = _fetch_ec2_hourly(pricing_client, instance_type, region)
+    instance_type, hourly, from_api = _resolve_ec2_instance(vcpu, ram, family, pricing_client, ec2_client, region)
 
     compute_monthly = hourly * nodes * HOURS_PER_MONTH
     # storage_per_node_gb is already in GB
@@ -233,7 +393,7 @@ def _price_worker_role(role: dict, pricing_client, region: str = "us-east-1") ->
     }
 
 
-def _price_db_role(role: dict, pricing_client, region: str = "us-east-1") -> dict:
+def _price_db_role(role: dict, pricing_client, ec2_client, region: str = "us-east-1") -> dict:
     """Price a DB or storage role."""
     vcpu    = role.get("vcpu_per_node", 0)
     ram     = role.get("ram_per_node", 0)
@@ -280,10 +440,10 @@ def _price_db_role(role: dict, pricing_client, region: str = "us-east-1") -> dic
                 "compute_monthly_usd": 0, "storage_monthly_usd": 0,
                 "monthly_usd": 0, "from_api": False}
 
-    instance_type   = _ec2_instance(vcpu, ram, family)
-    hourly, from_api = _fetch_ec2_hourly(pricing_client, instance_type)
+    instance_type, hourly, from_api = _resolve_ec2_instance(vcpu, ram, family, pricing_client, ec2_client, region)
     compute_monthly = hourly * nodes * HOURS_PER_MONTH
-    storage_monthly = storage * nodes * EBS_GP3_PER_GB
+    reg_mult = AWS_REGIONS.get(region, {}).get("multiplier", 1.0)
+    storage_monthly = storage * nodes * EBS_GP3_PER_GB * reg_mult
 
     return {
         **role,
@@ -297,7 +457,7 @@ def _price_db_role(role: dict, pricing_client, region: str = "us-east-1") -> dic
     }
 
 
-def _price_fixed_role(role: dict, pricing_client, data_gb: float = 0, region: str = "us-east-1") -> dict:
+def _price_fixed_role(role: dict, pricing_client, ec2_client, data_gb: float = 0, region: str = "us-east-1") -> dict:
     """Price a fixed infra role."""
     key     = role.get("role_key", "")
     nodes   = role.get("nodes", 0)
@@ -361,10 +521,10 @@ def _price_fixed_role(role: dict, pricing_client, data_gb: float = 0, region: st
 
     # Bastion host
     if key == "bastion" and vcpu > 0:
-        instance_type    = _ec2_instance(vcpu, ram, "general")
-        hourly, from_api = _fetch_ec2_hourly(pricing_client, instance_type, region)
+        instance_type, hourly, from_api = _resolve_ec2_instance(vcpu, ram, "general", pricing_client, ec2_client, region)
         compute_monthly = hourly * nodes * HOURS_PER_MONTH
-        storage_monthly = storage * EBS_GP3_PER_GB
+        reg_mult = AWS_REGIONS.get(region, {}).get("multiplier", 1.0)
+        storage_monthly = storage * EBS_GP3_PER_GB * reg_mult
         monthly         = compute_monthly + storage_monthly
         return {**role, "instance_type": instance_type, "hourly_usd": round(hourly, 4),
                 "compute_monthly_usd": round(compute_monthly, 2),
@@ -411,21 +571,22 @@ def calculate_pricing(distribution: dict, metrics: dict, region: str = "us-east-
         assumptions, warnings
     """
     pricing_client = _init_pricing(region)
+    ec2_client     = _init_ec2(region)
     data_gb        = metrics.get("data_size_gb", 0)
     warnings       = []
     priced_roles   = []
 
     # 1. Worker nodes
     for role in distribution.get("worker_nodes", []):
-        priced_roles.append(_price_worker_role(role, pricing_client, region))
+        priced_roles.append(_price_worker_role(role, pricing_client, ec2_client, region))
 
     # 2. DB + storage nodes
     for role in distribution.get("db_nodes", []):
-        priced_roles.append(_price_db_role(role, pricing_client, region))
+        priced_roles.append(_price_db_role(role, pricing_client, ec2_client, region))
 
     # 3. Fixed infra roles
     for role in distribution.get("fixed_roles", []):
-        priced_roles.append(_price_fixed_role(role, pricing_client, data_gb, region))
+        priced_roles.append(_price_fixed_role(role, pricing_client, ec2_client, data_gb, region))
 
     # 4. CloudWatch
     total_worker = distribution["summary"]["total_worker_nodes"]
@@ -483,8 +644,7 @@ def calculate_pricing(distribution: dict, metrics: dict, region: str = "us-east-
     oracle_ram    = metrics.get("oracle_ram_gb", 0)
 
     # PostgreSQL = self-hosted on EC2 (no licensing cost)
-    pg_instance   = _ec2_instance(32, min(postgres_ram, 128), "memory")
-    pg_hourly, _  = _fetch_ec2_hourly(pricing_client, pg_instance)
+    pg_instance, pg_hourly, _ = _resolve_ec2_instance(32, min(postgres_ram, 128), "memory", pricing_client, ec2_client, region)
     pg_monthly    = round(pg_hourly * 2 * HOURS_PER_MONTH, 2)   # 2 primary nodes
     
     # helper for sizing RDS based on requested RAM

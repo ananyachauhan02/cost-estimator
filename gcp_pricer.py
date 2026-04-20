@@ -34,6 +34,7 @@ GCP_REGIONS = {
     "us-west4":             {"label": "US West (Las Vegas)",             "multiplier": 1.040},
     "northamerica-northeast1": {"label": "Canada (Montréal)",            "multiplier": 1.030},
     "northamerica-northeast2": {"label": "Canada (Toronto)",             "multiplier": 1.030},
+    "northamerica-south1":     {"label": "North America (Mexico)",       "multiplier": 1.050},
     "southamerica-east1":   {"label": "South America (São Paulo)",       "multiplier": 1.210},
     "southamerica-west1":   {"label": "South America (Santiago)",        "multiplier": 1.200},
     
@@ -49,6 +50,7 @@ GCP_REGIONS = {
     "europe-west12":        {"label": "Europe (Turin)",                  "multiplier": 1.100},
     "europe-central2":      {"label": "Europe (Warsaw)",                 "multiplier": 1.100},
     "europe-north1":        {"label": "Europe (Finland)",                "multiplier": 1.050},
+    "europe-north2":        {"label": "Europe (Stockholm)",              "multiplier": 1.060},
     "europe-southwest1":    {"label": "Europe (Madrid)",                 "multiplier": 1.050},
 
     # Asia Pacific
@@ -56,8 +58,9 @@ GCP_REGIONS = {
     "asia-south2":          {"label": "Asia Pacific (Delhi)",            "multiplier": 1.080},
     "asia-east1":           {"label": "Asia Pacific (Taiwan)",           "multiplier": 1.050},
     "asia-east2":           {"label": "Asia Pacific (Hong Kong)",        "multiplier": 1.180},
-    "asia-southeast1":      {"label": "Asia Pacific (Singapore)",        "multiplier": 1.100},
+    "asia-southeast1":      {"label": "Asia Pacific (Singapore, nearest to Malaysia)", "multiplier": 1.100},
     "asia-southeast2":      {"label": "Asia Pacific (Jakarta)",          "multiplier": 1.100},
+    "asia-southeast3":      {"label": "Asia Pacific (Bangkok)",          "multiplier": 1.100},
     "asia-northeast1":      {"label": "Asia Pacific (Tokyo)",            "multiplier": 1.130},
     "asia-northeast2":      {"label": "Asia Pacific (Osaka)",            "multiplier": 1.130},
     "asia-northeast3":      {"label": "Asia Pacific (Seoul)",            "multiplier": 1.130},
