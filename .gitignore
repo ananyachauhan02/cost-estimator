@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+pricing_cache.json
+.env
+local_postgres/
+k8s-deployment.yaml
+.env
+k8s-deployment.yaml

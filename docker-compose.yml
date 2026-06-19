@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL Database ────────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: cost-estimator-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: costuser
+      POSTGRES_PASSWORD: 12345abcde
+      POSTGRES_DB: costdb
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U costuser -d costdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Streamlit Application ─────────────────────────────────────────────────
+  app:
+    build: .
+    image: cost-estimator:${APP_VERSION:-latest}
+    container_name: cost-estimator-app
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: costuser
+      DB_PASS: 12345abcde
+      DB_NAME: costdb
+      APP_VERSION: ${APP_VERSION:-latest}
+      # AWS: credentials come automatically from the EC2 IAM Role (no keys needed)
+      AWS_DEFAULT_REGION: us-east-1
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

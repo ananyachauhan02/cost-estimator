@@ -1,0 +1,11 @@
+apiVersion: v1
+data:
+  .dockerconfigjson: eyJhdXRocyI6eyJodHRwczovL2luZGV4LmRvY2tlci5pby92MS8iOnsidXNlcm5hbWUiOiJidXNpbmVzc25leHRhdmVuZ2VycyIsInBhc3N3b3JkIjoiZGNrcl9wYXRfV19FSzFCX2otcVNHN2N6cjFRUFRpd2NNSE9NIiwiYXV0aCI6IlluVnphVzVsYzNOdVpYaDBZWFpsYm1kbGNuTTZaR05yY2w5d1lYUmZWMTlGU3pGQ1gyb3RjVk5ITjJONmNqRlJVRlJwZDJOTlNFOU4ifX19
+kind: Secret
+metadata:
+  annotations:
+  name: imgpull
+  namespace: cost-estimator
+  resourceVersion: "453341752"
+  uid: 93e982e5-8ef4-4944-95f8-7cf64bba5653
+type: kubernetes.io/dockerconfigjson
