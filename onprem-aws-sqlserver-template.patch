@@ -1,0 +1,1533 @@
+From 2880c4834e4e4aee25ea90a3a864766e0aaeaf99 Mon Sep 17 00:00:00 2001
+From: Claude <claude@anthropic.com>
+Date: Fri, 19 Jun 2026 18:11:13 +0000
+Subject: [PATCH] On-Prem AWS + SQL Server template: cloud-aware DB sizing, new
+ API route, new UI module
+
+- onprem_sizer.py (new): cloud x DB sizing matrix. AWS self-hosted EC2
+  (AMD EPYC first, BYOL + AWS-owned Enterprise license for SQL Server,
+  automatic fallback if AMD unavailable in region). GCP managed-equivalent
+  (Cloud SQL custom tier, N2D/AMD-first). Kubeadm/OpenShift generic
+  self-hosted VM sizing. Reuses aws_machine_catalog/gcp_machine_catalog
+  (read-only) for instance selection.
+
+- api_server.py: new POST /api/generate-onprem-estimate route, fully
+  separate from /api/generate-estimate (SaaS). Sizing only, pricing=None
+  always. Reuses excel_handler/node_distributor/excel_exporter read-only.
+  Zero lines changed in the existing SaaS route (221 insertions, 0
+  deletions in this file).
+
+- frontend/src/app/onprem/estimate/new + onprem/results (new routes):
+  on-prem sizing wizard (cloud + DB + volumes) and sizing-only results
+  page with echarts visuals (worker role donut, compute-shape bars,
+  storage bars, DB sizing card with AMD selection note). No cost figures
+  anywhere in this module.
+
+- lib/api.ts: added onpremApi + types, additive only (91 insertions, 0
+  deletions).
+
+- Sidebar.tsx: added 'On-Premise Sizing' nav entry, additive only (39
+  insertions, 0 deletions).
+
+Verified: tsc --noEmit clean, eslint clean on all new/changed files,
+full next build succeeds (15 routes incl. 2 new), end-to-end pipeline
+test run (real LibreOffice recalculation + real Excel sizing workbook
+generation) for AWS + SQL Server in ap-south-1 (AMD selected) and
+us-west-1 (no AMD, correct fallback). SaaS path untouched: 0 deletions
+across all 3 modified files.
+---
+ api_server.py                                 | 221 ++++++++++
+ frontend/src/app/onprem/estimate/new/page.tsx | 417 ++++++++++++++++++
+ frontend/src/app/onprem/results/page.tsx      | 306 +++++++++++++
+ frontend/src/components/layout/Sidebar.tsx    |  39 ++
+ frontend/src/lib/api.ts                       |  91 ++++
+ onprem_sizer.py                               | 342 ++++++++++++++
+ 6 files changed, 1416 insertions(+)
+ create mode 100644 frontend/src/app/onprem/estimate/new/page.tsx
+ create mode 100644 frontend/src/app/onprem/results/page.tsx
+ create mode 100644 onprem_sizer.py
+
+diff --git a/api_server.py b/api_server.py
+index 9bbdf773..2bb6f9cd 100644
+--- a/api_server.py
++++ b/api_server.py
+@@ -1101,6 +1101,227 @@ def generate_estimate(
+     }
+ 
+ 
++# ── On-Premise Sizing (separate pipeline — NO pricing, sizing only) ──────────
++
++class GenerateOnpremEstimateRequest(BaseModel):
++    """
++    Request body for the On-Premise sizing pipeline.
++    Entirely separate from GenerateEstimateRequest (SaaS) — does not affect
++    or share validation/defaults with the SaaS estimate flow.
++    """
++    # ── Identity ─────────────────────────────────────────────────────────────
++    clientId:         Optional[str]  = None
++    clientName:       str            = "Bank"
++    database:         str            = "SQL Server"   # "PostgreSQL" | "SQL Server" | "Oracle"
++    cloud:            str            = "aws"           # "aws" | "gcp" | "kubeadm" | "openshift"
++    region:           Optional[str] = None             # AWS/GCP region; ignored for kubeadm/openshift
++
++    # ── Year-1 base values (same shape as SaaS, kept independent) ───────────
++    namedUsers:              int   = 15500
++    concurrentUsers:         int   = 4650
++    concurrentMobileUsers:   int   = 0
++    totalCustomers:          int   = 25786541
++    numberOfLeads:           int   = 10700000
++    serviceRequests:         int   = 20000
++
++    namedUsersYoy:           int   = 5
++    concurrentUsersYoy:      int   = 5
++    concurrentMobileUsersYoy:int   = 5
++    totalCustomersYoy:       int   = 10
++    numberOfLeadsYoy:        int   = 10
++    serviceRequestsYoy:      int   = 5
++
++    # ── Environments & contract ──────────────────────────────────────────────
++    environments:     List[str] = []          # e.g. ["DR"], ["Pre-Prod","UAT"]
++    drScale:          int       = 100          # 50 or 100 (percent)
++    contractDuration: str       = "3 Year"
++
++    estimateNotes:    str   = ""
++
++
++@app.post("/api/generate-onprem-estimate", status_code=200)
++def generate_onprem_estimate(
++    body: GenerateOnpremEstimateRequest,
++    current_user: dict = Depends(get_current_user),
++):
++    """
++    On-Premise sizing pipeline. SIZING ONLY — no pricing is computed or
++    returned anywhere in this route. Completely independent of
++    /api/generate-estimate (SaaS) — shares only read-only helper modules.
++
++    Steps:
++      1. write_and_recalculate / extract_metrics — same Excel template as SaaS,
++         reused because the worker-node sizing math is cloud-agnostic.
++      2. distribute_nodes — reused as-is for worker-tier sizing (web/app/infra).
++      3. onprem_sizer.size_onprem_database — NEW cloud-aware DB sizing
++         (AWS self-hosted AMD-first BYOL / GCP managed Cloud SQL / Kubeadm &
++         OpenShift generic self-hosted).
++      4. excel_exporter.generate_onprem_excel — sizing-only workbook.
++      5. database.save_estimate — persisted with client_mode="onprem",
++         pricing=None.
++    """
++    try:
++        from excel_handler import write_and_recalculate, extract_metrics
++        from node_distributor import distribute_nodes
++        from onprem_sizer import size_onprem_database
++        from excel_exporter import generate_onprem_excel
++    except ImportError as imp_err:
++        raise HTTPException(status_code=503, detail=f"Pipeline modules not available: {imp_err}")
++
++    db_type   = body.database
++    cloud     = body.cloud.lower()
++    customer_name = body.clientName
++
++    if cloud not in ("aws", "gcp", "kubeadm", "openshift"):
++        raise HTTPException(status_code=400, detail=f"Unsupported cloud option: {body.cloud!r}")
++
++    envs_lower = [e.lower() for e in body.environments]
++    include_dr = any("dr" in e for e in envs_lower)
++    dr_scale_frac = body.drScale / 100.0
++
++    years_map = {"1 Year": 1, "3 Year": 3, "5 Year": 5}
++    years     = years_map.get(body.contractDuration, 3)
++
++    client_id_int: Optional[int] = None
++    if body.clientId:
++        try:
++            client_id_int = int(body.clientId)
++        except ValueError:
++            pass
++
++    # ── STEP 1 — Same Excel template as SaaS (worker-node sizing is cloud-agnostic) ──
++    inputs = {
++        "named_users":      body.namedUsers,
++        "concurrent_users": body.concurrentUsers,
++        "total_customers":  body.totalCustomers,
++        "leads":            body.numberOfLeads,
++        "cases":            body.serviceRequests,
++        "mobile_users":     body.concurrentMobileUsers,
++        "yoy_named_users":  body.namedUsersYoy / 100.0,
++        "yoy_concurrent":   body.concurrentUsersYoy / 100.0,
++        "yoy_customers":    body.totalCustomersYoy / 100.0,
++        "yoy_leads":        body.numberOfLeadsYoy / 100.0,
++        "yoy_cases":        body.serviceRequestsYoy / 100.0,
++        "yoy_mobile":       body.concurrentMobileUsersYoy / 100.0,
++    }
++    try:
++        updated_file = write_and_recalculate(
++            inputs=inputs,
++            template_path="templates/Sizing_Template.xlsx",
++            output_path=f"reports/updated_estimate_onprem_{cloud}.xlsx",
++        )
++    except Exception as exc:
++        raise HTTPException(status_code=500, detail=f"Step 1 (Sizing Template): {exc}")
++
++    try:
++        metrics = extract_metrics(updated_file)
++    except Exception as exc:
++        raise HTTPException(status_code=500, detail=f"Step 2 (Extract metrics): {exc}")
++
++    metrics.update({
++        "mobile_users":      body.concurrentMobileUsers,
++        "db_type":           db_type,
++        "client_mode":       "onprem",
++        "cloud":             cloud,
++        "customer_name":     customer_name,
++        "total_named_users": body.namedUsers,
++    })
++
++    # ── STEP 3 — Worker-tier distribution (reused as-is; cloud-agnostic) ─────
++    workload_profile = {
++        "workload_type":   "banking_crm",
++        "peak_load":       "high",
++        "mobile_heavy":    body.concurrentMobileUsers > 3000,
++        "mobile_users":    body.concurrentMobileUsers,
++        "reporting_db":    False,
++        "high_compliance": True,
++        "db_type":         db_type,
++        "client_mode":     "onprem",
++        "notes":           "",
++    }
++    try:
++        distribution = distribute_nodes(
++            metrics=metrics,
++            workload_profile=workload_profile,
++            use_llm=True,
++            db_type=db_type,
++            dr_scale=dr_scale_frac,
++        )
++    except Exception as exc:
++        raise HTTPException(status_code=500, detail=f"Step 3 (Node distribution): {exc}")
++
++    # ── STEP 4 — Cloud-aware DB sizing (NEW — the whole point of this route) ─
++    try:
++        db_sizing = size_onprem_database(
++            metrics=metrics,
++            db_type=db_type,
++            cloud=cloud,
++            region=body.region,
++        )
++    except Exception as exc:
++        raise HTTPException(status_code=500, detail=f"Step 4 (On-Prem DB sizing): {exc}")
++
++    # ── STEP 5 — Sizing-only Excel workbook ───────────────────────────────────
++    onprem_sizing_path = None
++    try:
++        cluster_label = {"aws": "AWS", "gcp": "GCP", "kubeadm": "Kubeadm", "openshift": "OpenShift"}[cloud]
++        db_slug = db_type.lower().replace(" ", "_")
++        onprem_sizing_path = generate_onprem_excel(
++            metrics=metrics,
++            distribution=distribution,
++            customer=customer_name,
++            output_dir="reports",
++            db_type=db_type,
++            years=years,
++            filename=f"onprem_{cloud}_{db_slug}_sizing.xlsx",
++            cluster_name=cluster_label,
++            include_dr=include_dr,
++            env_names=body.environments,
++            dr_scale=dr_scale_frac,
++        )
++    except Exception as exc:
++        print(f"[api_server] WARNING Step 5 (On-Prem Excel) failed: {exc}")
++
++    # ── STEP 6 — Save to database (pricing=None always) ──────────────────────
++    try:
++        saved_id = db.save_estimate(
++            customer_name=customer_name,
++            estimate_date=datetime.utcnow(),
++            years=years,
++            metrics=metrics,
++            client_mode="onprem",
++            db_type=db_type,
++            pricing=None,
++            distribution={**distribution, "onprem_db_sizing": db_sizing, "cloud": cloud},
++            env_pricing=None,
++            cloud_sizing_path=onprem_sizing_path,
++            aws_pricing_path=None,
++            client_id=client_id_int,
++            notes=body.estimateNotes or "",
++        )
++    except Exception as exc:
++        raise HTTPException(status_code=500, detail=f"Step 6 (Save estimate): {exc}")
++
++    return {
++        "success":       True,
++        "estimateId":    str(saved_id),
++        "customerName":  customer_name,
++        "clientMode":    "onprem",
++        "cloud":         cloud,
++        "database":      db_type,
++        "dbSizing":      db_sizing,
++        "metrics": {
++            "workerNodes": metrics.get("total_workernodes", 0),
++            "totalVcpus":  metrics.get("total_vcpus_workernode", 0),
++            "totalRamGb":  metrics.get("total_memory_workernode_gb", 0),
++            "dataSizeGb":  metrics.get("data_size_gb", 0),
++            "s3SizeGb":    metrics.get("s3_size_gb", 0),
++        },
++        "distribution":  distribution,
++        "excelGenerated": bool(onprem_sizing_path),
++    }
++
++
+ # ── Pricing Cache ─────────────────────────────────────────────────────────────
+ 
+ import json as _json
+diff --git a/frontend/src/app/onprem/estimate/new/page.tsx b/frontend/src/app/onprem/estimate/new/page.tsx
+new file mode 100644
+index 00000000..cd01bcd9
+--- /dev/null
++++ b/frontend/src/app/onprem/estimate/new/page.tsx
+@@ -0,0 +1,417 @@
++"use client";
++
++import { motion, AnimatePresence } from "framer-motion";
++import { useState, Suspense } from "react";
++import { useRouter, useSearchParams } from "next/navigation";
++import {
++  User, Database, Globe, FileText, ChevronRight, ChevronLeft,
++  Loader2, Cloud, Server, Box, Layers, CheckCircle,
++} from "lucide-react";
++import AppShell from "@/components/layout/AppShell";
++import { onpremApi, type OnpremCloud, type GenerateOnpremEstimateRequest } from "@/lib/api";
++
++const STEPS = [
++  { id: 1, label: "Customer", icon: User },
++  { id: 2, label: "Cloud & Database", icon: Database },
++  { id: 3, label: "Volumes & Environments", icon: Globe },
++  { id: 4, label: "Review", icon: FileText },
++];
++
++const CLOUDS: { id: OnpremCloud; label: string; icon: typeof Cloud; blurb: string }[] = [
++  { id: "aws",       label: "AWS",       icon: Cloud,  blurb: "Self-hosted on EC2 — AMD EPYC preferred, BYOL licensing" },
++  { id: "gcp",       label: "GCP",       icon: Cloud,  blurb: "Managed equivalent (Cloud SQL) — AMD EPYC (N2D) preferred" },
++  { id: "kubeadm",   label: "Kubeadm",   icon: Box,    blurb: "Self-hosted on customer VM/bare-metal cluster" },
++  { id: "openshift", label: "OpenShift", icon: Layers, blurb: "Self-hosted on OpenShift-managed cluster" },
++];
++
++const DATABASES = ["PostgreSQL", "SQL Server", "Oracle"] as const;
++
++const AWS_REGIONS = [
++  "us-east-1 (N. Virginia)", "us-east-2 (Ohio)", "us-west-1 (N. California)",
++  "us-west-2 (Oregon)", "ca-central-1 (Canada Central)", "sa-east-1 (São Paulo)",
++  "eu-central-1 (Frankfurt)", "eu-west-1 (Ireland)", "eu-west-2 (London)",
++  "eu-west-3 (Paris)", "eu-north-1 (Stockholm)",
++  "ap-south-1 (Mumbai)", "ap-south-2 (Hyderabad)", "ap-northeast-1 (Tokyo)",
++  "ap-northeast-2 (Seoul)", "ap-southeast-1 (Singapore)", "ap-southeast-2 (Sydney)",
++  "me-south-1 (Bahrain)", "af-south-1 (Cape Town)",
++];
++
++const GCP_REGIONS = [
++  "us-central1 (Iowa)", "us-east1 (South Carolina)", "us-west1 (Oregon)",
++  "northamerica-northeast1 (Montréal)", "southamerica-east1 (São Paulo)",
++  "europe-west1 (Belgium)", "europe-west3 (Frankfurt)", "europe-west2 (London)",
++  "asia-south1 (Mumbai)", "asia-south2 (Delhi)", "asia-southeast1 (Singapore)",
++  "asia-northeast1 (Tokyo)", "australia-southeast1 (Sydney)",
++  "me-central1 (Doha)", "af-south1 (Johannesburg)",
++];
++
++const ENVIRONMENTS = ["Pre-Prod", "SIT", "UAT", "DR"];
++
++function OnpremWizard() {
++  const router = useRouter();
++  const searchParams = useSearchParams();
++  const [step, setStep] = useState(1);
++  const [isGenerating, setIsGenerating] = useState(false);
++  const [generationStep, setGenerationStep] = useState(0);
++  const [generateError, setGenerateError] = useState<string | null>(null);
++
++  const urlClientName = searchParams.get("clientName") ?? "";
++  const clientId = searchParams.get("clientId") ?? undefined;
++
++  const [form, setForm] = useState({
++    customerName: urlClientName,
++    estimateLabel: "",
++    cloud: "aws" as OnpremCloud,
++    database: "SQL Server" as "PostgreSQL" | "SQL Server" | "Oracle",
++    region: "ap-south-1 (Mumbai)",
++    namedUsers: 15500,
++    namedUsersYoy: 5,
++    concurrentUsers: 4650,
++    concurrentUsersYoy: 5,
++    concurrentMobileUsers: 0,
++    concurrentMobileUsersYoy: 5,
++    totalCustomers: 25786541,
++    totalCustomersYoy: 10,
++    numberOfLeads: 10700000,
++    numberOfLeadsYoy: 10,
++    serviceRequests: 20000,
++    serviceRequestsYoy: 5,
++    environments: ["DR"] as string[],
++    drScale: 100,
++    contractDuration: "3 Year",
++  });
++
++  const handleChange = <K extends keyof typeof form>(key: K, value: typeof form[K]) => {
++    setForm((prev) => ({ ...prev, [key]: value }));
++  };
++
++  const toggleEnv = (env: string) => {
++    setForm((prev) => ({
++      ...prev,
++      environments: prev.environments.includes(env)
++        ? prev.environments.filter((e) => e !== env)
++        : [...prev.environments, env],
++    }));
++  };
++
++  const showRegionPicker = form.cloud === "aws" || form.cloud === "gcp";
++  const regionOptions = form.cloud === "aws" ? AWS_REGIONS : GCP_REGIONS;
++
++  const GENERATION_STEPS = [
++    "Recalculating Sizing Template…",
++    "Distributing Worker Nodes…",
++    `Sizing ${form.database} for ${CLOUDS.find((c) => c.id === form.cloud)?.label}…`,
++    "Generating Sizing Workbook…",
++    "Saving Estimate…",
++  ];
++
++  const handleGenerate = async () => {
++    setIsGenerating(true);
++    setGenerateError(null);
++
++    const stepInterval = setInterval(() => {
++      setGenerationStep((prev) => (prev < GENERATION_STEPS.length - 1 ? prev + 1 : prev));
++    }, 1500);
++
++    try {
++      const regionCode = form.region.split(" ")[0];
++
++      const payload: GenerateOnpremEstimateRequest = {
++        clientId: clientId ?? null,
++        clientName: form.customerName || "Bank",
++        database: form.database,
++        cloud: form.cloud,
++        region: showRegionPicker ? regionCode : null,
++
++        namedUsers: form.namedUsers,
++        concurrentUsers: form.concurrentUsers,
++        concurrentMobileUsers: form.concurrentMobileUsers,
++        totalCustomers: form.totalCustomers,
++        numberOfLeads: form.numberOfLeads,
++        serviceRequests: form.serviceRequests,
++
++        namedUsersYoy: form.namedUsersYoy,
++        concurrentUsersYoy: form.concurrentUsersYoy,
++        concurrentMobileUsersYoy: form.concurrentMobileUsersYoy,
++        totalCustomersYoy: form.totalCustomersYoy,
++        numberOfLeadsYoy: form.numberOfLeadsYoy,
++        serviceRequestsYoy: form.serviceRequestsYoy,
++
++        environments: form.environments,
++        drScale: form.drScale,
++        contractDuration: form.contractDuration,
++        estimateNotes: form.estimateLabel || "",
++      };
++
++      const result = await onpremApi.generate(payload);
++      clearInterval(stepInterval);
++      setGenerationStep(GENERATION_STEPS.length - 1);
++      await new Promise((r) => setTimeout(r, 500));
++
++      router.push(`/onprem/results?id=${result.estimateId}${clientId ? `&clientId=${clientId}` : ""}`);
++    } catch (err: unknown) {
++      clearInterval(stepInterval);
++      setGenerateError(err instanceof Error ? err.message : String(err));
++      setIsGenerating(false);
++      setGenerationStep(0);
++    }
++  };
++
++  const inputClass = "w-full px-4 py-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-all bg-white";
++  const labelClass = "block text-xs font-semibold text-slate-700 mb-1.5";
++
++  return (
++    <AppShell breadcrumbs={[{ label: "Clients", href: "/clients" }, { label: "On-Premise Sizing" }]}>
++      <div className="max-w-4xl mx-auto">
++        {/* On-Prem mode banner */}
++        <div className="flex items-center gap-2 mb-5 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold">
++          <Server className="w-4 h-4" />
++          On-Premise Sizing Module — infrastructure sizing only, no cost estimates are generated.
++        </div>
++
++        {/* Stepper */}
++        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-5">
++          <div className="flex items-center justify-between">
++            {STEPS.map((s, i) => (
++              <div key={s.id} className="flex items-center flex-1">
++                <button
++                  onClick={() => s.id < step && setStep(s.id)}
++                  className="flex flex-col items-center gap-1.5 group"
++                >
++                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold transition-all ${
++                    s.id < step
++                      ? "bg-emerald-500 text-white"
++                      : s.id === step
++                      ? "text-white"
++                      : "bg-slate-100 text-slate-400"
++                  }`} style={s.id === step ? { background: "linear-gradient(135deg, #d97706, #b45309)" } : {}}>
++                    {s.id < step ? <CheckCircle className="w-4 h-4" /> : <s.icon className="w-4 h-4" />}
++                  </div>
++                  <span className={`text-[11px] font-semibold ${s.id === step ? "text-amber-700" : "text-slate-400"}`}>
++                    {s.label}
++                  </span>
++                </button>
++                {i < STEPS.length - 1 && (
++                  <div className={`flex-1 h-0.5 mx-2 rounded-full ${s.id < step ? "bg-emerald-400" : "bg-slate-100"}`} />
++                )}
++              </div>
++            ))}
++          </div>
++        </div>
++
++        {/* Form card */}
++        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-7">
++          <AnimatePresence mode="wait">
++            {step === 1 && (
++              <motion.div key="s1" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
++                <h2 className="text-lg font-bold text-slate-900 mb-1">Customer details</h2>
++                <p className="text-sm text-slate-500 mb-6">Basic information for this on-premise sizing estimate.</p>
++                <div className="grid grid-cols-2 gap-4">
++                  <div>
++                    <label className={labelClass}>Customer / Bank Name</label>
++                    <input className={inputClass} value={form.customerName}
++                      onChange={(e) => handleChange("customerName", e.target.value)}
++                      placeholder="e.g. HDFC Bank" />
++                  </div>
++                  <div>
++                    <label className={labelClass}>Estimate Label (optional)</label>
++                    <input className={inputClass} value={form.estimateLabel}
++                      onChange={(e) => handleChange("estimateLabel", e.target.value)}
++                      placeholder="e.g. Phase 1 — Core Banking" />
++                  </div>
++                </div>
++              </motion.div>
++            )}
++
++            {step === 2 && (
++              <motion.div key="s2" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
++                <h2 className="text-lg font-bold text-slate-900 mb-1">Cloud & database</h2>
++                <p className="text-sm text-slate-500 mb-6">Choose the target infrastructure and database engine.</p>
++
++                <label className={labelClass}>Cloud Platform</label>
++                <div className="grid grid-cols-4 gap-3 mb-6">
++                  {CLOUDS.map((c) => (
++                    <button key={c.id} onClick={() => handleChange("cloud", c.id)}
++                      className={`p-4 rounded-xl border-2 text-left transition-all ${
++                        form.cloud === c.id ? "border-amber-500 bg-amber-50" : "border-slate-200 hover:border-slate-300"
++                      }`}>
++                      <c.icon className={`w-5 h-5 mb-2 ${form.cloud === c.id ? "text-amber-600" : "text-slate-400"}`} />
++                      <p className="text-sm font-bold text-slate-900">{c.label}</p>
++                      <p className="text-[11px] text-slate-500 mt-1 leading-snug">{c.blurb}</p>
++                    </button>
++                  ))}
++                </div>
++
++                <label className={labelClass}>Database Engine</label>
++                <div className="grid grid-cols-3 gap-3 mb-6">
++                  {DATABASES.map((db) => (
++                    <button key={db} onClick={() => handleChange("database", db)}
++                      className={`py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
++                        form.database === db ? "border-amber-500 bg-amber-50 text-amber-700" : "border-slate-200 text-slate-600 hover:border-slate-300"
++                      }`}>
++                      {db}
++                    </button>
++                  ))}
++                </div>
++
++                {showRegionPicker && (
++                  <div>
++                    <label className={labelClass}>{form.cloud === "aws" ? "AWS Region" : "GCP Region"}</label>
++                    <select className={inputClass} value={form.region}
++                      onChange={(e) => handleChange("region", e.target.value)}>
++                      {regionOptions.map((r) => <option key={r} value={r}>{r}</option>)}
++                    </select>
++                    {form.database === "SQL Server" && form.cloud === "aws" && (
++                      <p className="text-[11px] text-slate-500 mt-2">
++                        SQL Server will be sized as self-hosted AMD EPYC compute (BYOL + AWS-owned Enterprise license) where available in this region, with an automatic equivalent fallback otherwise.
++                      </p>
++                    )}
++                  </div>
++                )}
++                {!showRegionPicker && (
++                  <p className="text-[11px] text-slate-500">
++                    {CLOUDS.find((c) => c.id === form.cloud)?.label} sizing uses customer-provided hardware — no cloud region selection needed.
++                  </p>
++                )}
++              </motion.div>
++            )}
++
++            {step === 3 && (
++              <motion.div key="s3" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
++                <h2 className="text-lg font-bold text-slate-900 mb-1">Volumes & environments</h2>
++                <p className="text-sm text-slate-500 mb-6">Year-1 workload volumes and optional lower environments.</p>
++
++                <div className="grid grid-cols-2 gap-4 mb-6">
++                  {[
++                    { key: "namedUsers" as const, label: "Named Users" },
++                    { key: "concurrentUsers" as const, label: "Concurrent Users" },
++                    { key: "concurrentMobileUsers" as const, label: "Concurrent Mobile Users" },
++                    { key: "totalCustomers" as const, label: "Total Customers" },
++                    { key: "numberOfLeads" as const, label: "Number of Leads" },
++                    { key: "serviceRequests" as const, label: "Service Requests (Cases)" },
++                  ].map((f) => (
++                    <div key={f.key}>
++                      <label className={labelClass}>{f.label}</label>
++                      <input type="number" className={inputClass} value={form[f.key]}
++                        onChange={(e) => handleChange(f.key, Number(e.target.value))} />
++                    </div>
++                  ))}
++                </div>
++
++                <label className={labelClass}>Lower Environments</label>
++                <div className="grid grid-cols-4 gap-3 mb-6">
++                  {ENVIRONMENTS.map((env) => (
++                    <button key={env} onClick={() => toggleEnv(env)}
++                      className={`py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
++                        form.environments.includes(env) ? "border-amber-500 bg-amber-50 text-amber-700" : "border-slate-200 text-slate-500 hover:border-slate-300"
++                      }`}>
++                      {env}
++                    </button>
++                  ))}
++                </div>
++
++                {form.environments.includes("DR") && (
++                  <div className="mb-6">
++                    <label className={labelClass}>DR Compute Scale</label>
++                    <div className="flex gap-3">
++                      {[50, 100].map((s) => (
++                        <button key={s} onClick={() => handleChange("drScale", s)}
++                          className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
++                            form.drScale === s ? "border-amber-500 bg-amber-50 text-amber-700" : "border-slate-200 text-slate-500 hover:border-slate-300"
++                          }`}>
++                          {s}% {s === 50 ? "(Pilot-light)" : "(Full Mirror)"}
++                        </button>
++                      ))}
++                    </div>
++                  </div>
++                )}
++
++                <div>
++                  <label className={labelClass}>Sizing Horizon</label>
++                  <div className="flex gap-3">
++                    {["1 Year", "3 Year", "5 Year"].map((y) => (
++                      <button key={y} onClick={() => handleChange("contractDuration", y)}
++                        className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
++                          form.contractDuration === y ? "border-amber-500 bg-amber-50 text-amber-700" : "border-slate-200 text-slate-500 hover:border-slate-300"
++                        }`}>
++                        {y}
++                      </button>
++                    ))}
++                  </div>
++                </div>
++              </motion.div>
++            )}
++
++            {step === 4 && (
++              <motion.div key="s4" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
++                <h2 className="text-lg font-bold text-slate-900 mb-1">Review & generate</h2>
++                <p className="text-sm text-slate-500 mb-6">Confirm the sizing inputs before generating the workbook.</p>
++
++                <div className="grid grid-cols-2 gap-4 mb-6">
++                  {[
++                    { label: "Customer", value: form.customerName || "—" },
++                    { label: "Cloud", value: CLOUDS.find((c) => c.id === form.cloud)?.label },
++                    { label: "Database", value: form.database },
++                    { label: "Region", value: showRegionPicker ? form.region : "On-Premise Data Center" },
++                    { label: "Named Users", value: form.namedUsers.toLocaleString() },
++                    { label: "Environments", value: form.environments.length ? form.environments.join(", ") : "Production only" },
++                    { label: "Sizing Horizon", value: form.contractDuration },
++                  ].map((item) => (
++                    <div key={item.label} className="bg-slate-50 rounded-xl p-3.5">
++                      <p className="text-[11px] text-slate-500 font-medium">{item.label}</p>
++                      <p className="text-sm font-bold text-slate-900 mt-0.5">{item.value}</p>
++                    </div>
++                  ))}
++                </div>
++
++                {generateError && (
++                  <div className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
++                    {generateError}
++                  </div>
++                )}
++
++                {isGenerating ? (
++                  <div className="flex flex-col items-center gap-3 py-8">
++                    <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
++                    <p className="text-sm font-semibold text-slate-700">{GENERATION_STEPS[generationStep]}</p>
++                  </div>
++                ) : (
++                  <button onClick={handleGenerate}
++                    className="w-full py-3.5 rounded-xl text-white font-bold text-sm shadow-sm transition-all hover:shadow-md"
++                    style={{ background: "linear-gradient(135deg, #d97706, #b45309)" }}>
++                    Generate On-Premise Sizing
++                  </button>
++                )}
++              </motion.div>
++            )}
++          </AnimatePresence>
++        </div>
++
++        {/* Nav buttons */}
++        {!isGenerating && (
++          <div className="flex justify-between mt-5">
++            <button onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1}
++              className="flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold text-slate-600 disabled:opacity-0 transition-opacity">
++              <ChevronLeft className="w-4 h-4" /> Back
++            </button>
++            {step < STEPS.length && (
++              <button onClick={() => setStep((s) => Math.min(STEPS.length, s + 1))}
++                className="flex items-center gap-1.5 px-5 py-2.5 text-sm font-bold text-white rounded-xl"
++                style={{ background: "linear-gradient(135deg, #d97706, #b45309)" }}>
++                Continue <ChevronRight className="w-4 h-4" />
++              </button>
++            )}
++          </div>
++        )}
++      </div>
++    </AppShell>
++  );
++}
++
++export default function OnpremWizardPage() {
++  return (
++    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-slate-400">Loading…</div>}>
++      <OnpremWizard />
++    </Suspense>
++  );
++}
+diff --git a/frontend/src/app/onprem/results/page.tsx b/frontend/src/app/onprem/results/page.tsx
+new file mode 100644
+index 00000000..c5967375
+--- /dev/null
++++ b/frontend/src/app/onprem/results/page.tsx
+@@ -0,0 +1,306 @@
++"use client";
++
++import { motion } from "framer-motion";
++import { useState, useEffect, Suspense } from "react";
++import dynamic from "next/dynamic";
++import { useSearchParams, useRouter } from "next/navigation";
++import {
++  Server, Database, HardDrive, Cpu, MemoryStick, Cloud, Box, Layers,
++  Download, RefreshCw, ShieldCheck, Loader2, AlertTriangle, CheckCircle2,
++} from "lucide-react";
++import AppShell from "@/components/layout/AppShell";
++import { estimatesApi, type EstimateDetail } from "@/lib/api";
++
++const EChartsReact = dynamic(() => import("echarts-for-react"), { ssr: false });
++
++const CLOUD_ICON: Record<string, typeof Cloud> = {
++  aws: Cloud, gcp: Cloud, kubeadm: Box, openshift: Layers,
++};
++const CLOUD_LABEL: Record<string, string> = {
++  aws: "AWS", gcp: "GCP", kubeadm: "Kubeadm", openshift: "OpenShift",
++};
++
++interface OnpremDistribution {
++  worker_nodes?: { role_key: string; label: string; nodes: number; vcpu_per_node: number; ram_per_node: number }[];
++  summary?: { total_worker_nodes: number; total_db_nodes: number };
++  onprem_db_sizing?: {
++    cloud: string;
++    db_type: string;
++    db: {
++      hosting_model: string; licensing: string; primary_label: string; cluster_info: string;
++      os: string; region: string; primary_nodes: number; vcpu_per_node: number; ram_per_node_gb: number;
++      instance_type: string; managed_tier_label?: string; amd_preferred: boolean | null;
++      amd_available_in_region: boolean | null; amd_selected: boolean | null; selection_note: string;
++      total_db_ram_gb_requested: number;
++    };
++    storage: { primary_san_gb: number; reporting_san_gb: number; object_storage_gb: number };
++  };
++  cloud?: string;
++}
++
++function OnpremResultsContent() {
++  const searchParams = useSearchParams();
++  const router = useRouter();
++  const estimateId = searchParams.get("id");
++  const clientId = searchParams.get("clientId");
++
++  const [estimate, setEstimate] = useState<EstimateDetail | null>(null);
++  const [loading, setLoading] = useState(!!estimateId);
++  const [error, setError] = useState<string | null>(estimateId ? null : "No estimate ID provided.");
++
++  useEffect(() => {
++    if (!estimateId) {
++      return;
++    }
++    estimatesApi.get(estimateId)
++      .then(setEstimate)
++      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
++      .finally(() => setLoading(false));
++  }, [estimateId]);
++
++  if (loading) {
++    return (
++      <AppShell breadcrumbs={[{ label: "On-Premise Sizing", href: "/onprem/estimate/new" }, { label: "Results" }]}>
++        <div className="flex items-center justify-center py-32">
++          <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
++        </div>
++      </AppShell>
++    );
++  }
++
++  if (error || !estimate) {
++    return (
++      <AppShell breadcrumbs={[{ label: "On-Premise Sizing", href: "/onprem/estimate/new" }, { label: "Results" }]}>
++        <div className="max-w-2xl mx-auto mt-20 p-6 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
++          <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
++          <div>
++            <p className="font-bold text-red-800">Could not load this estimate</p>
++            <p className="text-sm text-red-600 mt-1">{error || "No estimate ID provided."}</p>
++          </div>
++        </div>
++      </AppShell>
++    );
++  }
++
++  const dist = (estimate.distribution || {}) as OnpremDistribution;
++  const dbSizing = dist.onprem_db_sizing;
++  const cloud = dbSizing?.cloud || dist.cloud || "aws";
++  const CloudIcon = CLOUD_ICON[cloud] || Cloud;
++  const workerNodes = dist.worker_nodes || [];
++  const summary = dist.summary || { total_worker_nodes: 0, total_db_nodes: 0 };
++
++  const metrics = (estimate.metrics || {}) as Record<string, unknown>;
++  const totalVcpus = Number(metrics.total_vcpus_workernode ?? 0);
++  const totalRamGb = Number(metrics.total_memory_workernode_gb ?? 0);
++  const dataGb = Number(metrics.data_size_gb ?? 0);
++  const s3Gb = Number(metrics.s3_size_gb ?? 0);
++
++  // ── Worker node role breakdown (donut) ──────────────────────────────────
++  const roleColors = ["#d97706", "#b45309", "#92400e", "#f59e0b", "#fbbf24", "#fcd34d"];
++  const workerDonutOption = {
++    tooltip: { trigger: "item", backgroundColor: "#1e293b", borderColor: "#334155", textStyle: { color: "#f8fafc" } },
++    legend: { orient: "vertical", left: "left", top: "middle", textStyle: { color: "#475569", fontSize: 11 } },
++    series: [{
++      type: "pie", radius: ["45%", "75%"], center: ["68%", "50%"],
++      data: workerNodes.map((r, i) => ({
++        value: r.nodes, name: r.label.replace("Worker Nodes Linux/RHEL", "").trim() || r.role_key,
++        itemStyle: { color: roleColors[i % roleColors.length] },
++      })),
++      label: { show: true, formatter: "{c}", fontSize: 11, fontWeight: "bold", color: "#1e293b" },
++      labelLine: { show: true, length: 6, length2: 6 },
++    }],
++  };
++
++  // ── Compute shape: worker vs DB (grouped bar — vCPU & RAM) ──────────────
++  const dbVcpuTotal = dbSizing ? dbSizing.db.vcpu_per_node * dbSizing.db.primary_nodes : 0;
++  const dbRamTotal = dbSizing ? dbSizing.db.ram_per_node_gb * dbSizing.db.primary_nodes : 0;
++  const tierOption = {
++    tooltip: { trigger: "axis", backgroundColor: "#1e293b", borderColor: "#334155", textStyle: { color: "#f8fafc" } },
++    legend: { data: ["vCPU", "RAM (GB)"], textStyle: { color: "#64748b", fontSize: 12 }, top: 0 },
++    grid: { left: "3%", right: "4%", bottom: "3%", top: "45px", containLabel: true },
++    xAxis: { type: "category", data: ["Worker Tier", `${dbSizing?.db_type || "Database"} Tier`], axisLine: { lineStyle: { color: "#e2e8f0" } }, axisTick: { show: false }, axisLabel: { color: "#94a3b8", fontSize: 12 } },
++    yAxis: { type: "value", axisLabel: { color: "#94a3b8", fontSize: 11 }, splitLine: { lineStyle: { color: "#f1f5f9", type: "dashed" } }, axisLine: { show: false }, axisTick: { show: false } },
++    series: [
++      { name: "vCPU", type: "bar", barWidth: 28, borderRadius: [6, 6, 0, 0],
++        itemStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: "#d97706" }, { offset: 1, color: "#fbbf24" }] } },
++        data: [totalVcpus, dbVcpuTotal] },
++      { name: "RAM (GB)", type: "bar", barWidth: 28, borderRadius: [6, 6, 0, 0],
++        itemStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: "#0891b2" }, { offset: 1, color: "#67e8f9" }] } },
++        data: [totalRamGb, dbRamTotal] },
++    ],
++  };
++
++  // ── Storage breakdown (horizontal bar) ──────────────────────────────────
++  const storage = dbSizing?.storage;
++  const storageOption = {
++    tooltip: { trigger: "axis", backgroundColor: "#1e293b", borderColor: "#334155", textStyle: { color: "#f8fafc" } },
++    grid: { left: "3%", right: "8%", bottom: "3%", top: "10px", containLabel: true },
++    xAxis: { type: "value", axisLabel: { color: "#94a3b8", fontSize: 11, formatter: (v: number) => `${v.toLocaleString()} GB` }, splitLine: { lineStyle: { color: "#f1f5f9", type: "dashed" } } },
++    yAxis: { type: "category", data: ["Object Storage", "Reporting SAN", "Primary SAN"], axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: "#475569", fontSize: 12, fontWeight: "bold" } },
++    series: [{
++      type: "bar", barWidth: 22, barCategoryGap: "40%",
++      itemStyle: { borderRadius: [0, 6, 6, 0], color: { type: "linear", x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: "#0e7490" }, { offset: 1, color: "#22d3ee" }] } },
++      label: { show: true, position: "right", color: "#1e293b", fontSize: 11, fontWeight: "bold", formatter: (p: { value: number }) => `${p.value.toLocaleString()} GB` },
++      data: [storage?.object_storage_gb || s3Gb, storage?.reporting_san_gb || dataGb, storage?.primary_san_gb || dataGb],
++    }],
++  };
++
++  const downloadUrl = estimate.id ? estimatesApi.downloadUrl(estimate.id, "sizing") : "#";
++
++  return (
++    <AppShell breadcrumbs={[{ label: "On-Premise Sizing", href: "/onprem/estimate/new" }, { label: estimate.customerName || "Results" }]}>
++      <div className="max-w-7xl mx-auto">
++        {/* Header */}
++        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-6">
++          <div>
++            <div className="flex items-center gap-2 mb-1">
++              <span className="px-2.5 py-0.5 bg-amber-100 text-amber-700 text-[11px] font-bold rounded-full uppercase tracking-wide">On-Premise</span>
++              <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-full flex items-center gap-1">
++                <CloudIcon className="w-3 h-3" /> {CLOUD_LABEL[cloud] || cloud}
++              </span>
++              <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-full">{dbSizing?.db_type || estimate.dbType}</span>
++            </div>
++            <h1 className="text-2xl font-bold text-slate-900">{estimate.customerName}</h1>
++            <p className="text-sm text-slate-500">Infrastructure sizing — no cost figures, sizing only</p>
++          </div>
++          <div className="flex items-center gap-2">
++            <button
++              onClick={() => router.push(`/onprem/estimate/new?clientId=${clientId ?? ""}&clientName=${estimate.customerName}`)}
++              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
++              <RefreshCw className="w-4 h-4" /> Recalculate
++            </button>
++            <a href={downloadUrl}
++              className="flex items-center gap-2 px-5 py-2 text-sm font-bold text-white rounded-xl"
++              style={{ background: "linear-gradient(135deg, #d97706, #b45309)" }}>
++              <Download className="w-4 h-4" /> Download Sizing Workbook
++            </a>
++          </div>
++        </motion.div>
++
++        {/* KPI strip */}
++        <div className="grid grid-cols-4 gap-4 mb-6">
++          {[
++            { icon: Server, label: "Worker Nodes", value: summary.total_worker_nodes ?? metrics.workerNodes ?? 0 },
++            { icon: Database, label: "Database Nodes", value: summary.total_db_nodes ?? dbSizing?.db.primary_nodes ?? 0 },
++            { icon: Cpu, label: "Total vCPUs (Worker)", value: totalVcpus },
++            { icon: MemoryStick, label: "Total RAM (Worker, GB)", value: totalRamGb },
++          ].map((kpi) => (
++            <div key={kpi.label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
++              <kpi.icon className="w-4 h-4 text-amber-500 mb-2" />
++              <p className="text-2xl font-bold text-slate-900">{Number(kpi.value).toLocaleString()}</p>
++              <p className="text-xs text-slate-500 font-medium">{kpi.label}</p>
++            </div>
++          ))}
++        </div>
++
++        {/* Database sizing card */}
++        {dbSizing && (
++          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
++            <div className="flex items-center justify-between mb-4">
++              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
++                <Database className="w-4 h-4 text-amber-600" /> {dbSizing.db_type} — Database Sizing
++              </h3>
++              <span className="px-3 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-full">{dbSizing.db.hosting_model}</span>
++            </div>
++            <div className="grid grid-cols-4 gap-4 mb-4">
++              <div className="bg-slate-50 rounded-xl p-3.5">
++                <p className="text-[11px] text-slate-500 font-medium">Primary Nodes</p>
++                <p className="text-lg font-bold text-slate-900 mt-0.5">{dbSizing.db.primary_nodes}</p>
++              </div>
++              <div className="bg-slate-50 rounded-xl p-3.5">
++                <p className="text-[11px] text-slate-500 font-medium">vCPU / RAM per Node</p>
++                <p className="text-lg font-bold text-slate-900 mt-0.5">{dbSizing.db.vcpu_per_node} / {dbSizing.db.ram_per_node_gb} GB</p>
++              </div>
++              <div className="bg-slate-50 rounded-xl p-3.5">
++                <p className="text-[11px] text-slate-500 font-medium">Instance / Tier</p>
++                <p className="text-sm font-bold text-slate-900 mt-0.5 truncate" title={dbSizing.db.managed_tier_label || dbSizing.db.instance_type}>
++                  {dbSizing.db.managed_tier_label || dbSizing.db.instance_type}
++                </p>
++              </div>
++              <div className="bg-slate-50 rounded-xl p-3.5">
++                <p className="text-[11px] text-slate-500 font-medium">Cluster Architecture</p>
++                <p className="text-sm font-bold text-slate-900 mt-0.5">{dbSizing.db.cluster_info}</p>
++              </div>
++            </div>
++            <div className="flex items-start gap-2 p-3.5 bg-amber-50 border border-amber-100 rounded-xl mb-3">
++              <ShieldCheck className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
++              <div>
++                <p className="text-xs font-semibold text-amber-800">{dbSizing.db.licensing}</p>
++                <p className="text-[11px] text-amber-700 mt-0.5">{dbSizing.db.selection_note}</p>
++              </div>
++            </div>
++            {dbSizing.db.amd_preferred !== null && (
++              <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
++                {dbSizing.db.amd_selected
++                  ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
++                  : <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />}
++                AMD EPYC {dbSizing.db.amd_selected ? "selected" : "not available — equivalent alternative used"} for region {dbSizing.db.region}
++              </div>
++            )}
++          </motion.div>
++        )}
++
++        {/* Charts row */}
++        <div className="grid grid-cols-2 gap-5 mb-6">
++          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
++            <h3 className="text-sm font-bold text-slate-900 mb-1">Worker Node Role Distribution</h3>
++            <p className="text-xs text-slate-500 mb-3">Node count by application tier role</p>
++            <EChartsReact option={workerDonutOption} style={{ height: 260 }} />
++          </div>
++          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
++            <h3 className="text-sm font-bold text-slate-900 mb-1">Compute Shape — Worker vs Database Tier</h3>
++            <p className="text-xs text-slate-500 mb-3">Total vCPU and RAM by tier</p>
++            <EChartsReact option={tierOption} style={{ height: 260 }} />
++          </div>
++        </div>
++
++        <div className="grid grid-cols-1 gap-5 mb-6">
++          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
++            <h3 className="text-sm font-bold text-slate-900 mb-1 flex items-center gap-2">
++              <HardDrive className="w-4 h-4 text-cyan-600" /> Storage Sizing
++            </h3>
++            <p className="text-xs text-slate-500 mb-3">Primary SAN, reporting SAN, and object storage requirements</p>
++            <EChartsReact option={storageOption} style={{ height: 180 }} />
++          </div>
++        </div>
++
++        {/* Worker role table */}
++        {workerNodes.length > 0 && (
++          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
++            <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
++              <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">Worker Node Detail</p>
++            </div>
++            <table className="w-full">
++              <thead>
++                <tr className="border-b border-slate-100">
++                  <th className="text-left px-5 py-2.5 text-xs font-semibold text-slate-500">Role</th>
++                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500">Nodes</th>
++                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500">vCPU / Node</th>
++                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500">RAM / Node (GB)</th>
++                </tr>
++              </thead>
++              <tbody>
++                {workerNodes.map((r) => (
++                  <tr key={r.role_key} className="border-b border-slate-50 last:border-0">
++                    <td className="px-5 py-2.5 text-sm text-slate-700">{r.label}</td>
++                    <td className="px-4 py-2.5 text-sm text-right font-semibold text-slate-900">{r.nodes}</td>
++                    <td className="px-4 py-2.5 text-sm text-right text-slate-600">{r.vcpu_per_node}</td>
++                    <td className="px-4 py-2.5 text-sm text-right text-slate-600">{r.ram_per_node}</td>
++                  </tr>
++                ))}
++              </tbody>
++            </table>
++          </div>
++        )}
++      </div>
++    </AppShell>
++  );
++}
++
++export default function OnpremResultsPage() {
++  return (
++    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-slate-400">Loading…</div>}>
++      <OnpremResultsContent />
++    </Suspense>
++  );
++}
+diff --git a/frontend/src/components/layout/Sidebar.tsx b/frontend/src/components/layout/Sidebar.tsx
+index a1284f4b..bc438a9d 100644
+--- a/frontend/src/components/layout/Sidebar.tsx
++++ b/frontend/src/components/layout/Sidebar.tsx
+@@ -12,6 +12,7 @@ import {
+   Bot,
+   Settings,
+   Cloud,
++  Server,
+   ChevronRight,
+ } from "lucide-react";
+ import { cn } from "@/lib/utils";
+@@ -26,6 +27,10 @@ const navItems = [
+   { icon: Settings, label: "Settings", href: "/settings" },
+ ];
+ 
++const onpremNavItems = [
++  { icon: Server, label: "On-Premise Sizing", href: "/onprem/estimate/new" },
++];
++
+ 
+ 
+ export default function Sidebar() {
+@@ -82,6 +87,40 @@ export default function Sidebar() {
+         })}
+ 
+       </nav>
++
++      {/* On-Premise section — visually distinct (amber) from SaaS main menu */}
++      <div className="px-3 py-4 border-t border-white/10">
++        <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider px-3 mb-3">
++          On-Premise
++        </p>
++        {onpremNavItems.map((item) => {
++          const isActive = pathname.startsWith(item.href) || pathname.startsWith("/onprem");
++          return (
++            <Link key={item.href} href={item.href}>
++              <motion.div
++                whileHover={{ x: 2 }}
++                className={cn(
++                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer group",
++                  isActive
++                    ? "text-white shadow-lg"
++                    : "text-slate-400 hover:text-white hover:bg-white/5"
++                )}
++                style={
++                  isActive
++                    ? { background: "linear-gradient(135deg, rgba(217,119,6,0.3), rgba(180,83,9,0.2))", borderLeft: "2px solid #d97706" }
++                    : {}
++                }
++              >
++                <item.icon className={cn("w-4 h-4 flex-shrink-0", isActive ? "text-amber-400" : "text-slate-500 group-hover:text-slate-300")} />
++                <span>{item.label}</span>
++                {isActive && (
++                  <ChevronRight className="w-3 h-3 ml-auto text-amber-400" />
++                )}
++              </motion.div>
++            </Link>
++          );
++        })}
++      </div>
+     </aside>
+   );
+ }
+diff --git a/frontend/src/lib/api.ts b/frontend/src/lib/api.ts
+index 3f9fc149..f04d7007 100644
+--- a/frontend/src/lib/api.ts
++++ b/frontend/src/lib/api.ts
+@@ -229,6 +229,97 @@ export const estimatesApi = {
+     `${API_URL}/api/estimates/${id}/download-all`,
+ };
+ 
++// ── On-Premise Sizing (separate from SaaS — sizing only, no pricing) ──────────
++
++export type OnpremCloud = "aws" | "gcp" | "kubeadm" | "openshift";
++
++export interface OnpremDbSizing {
++  cloud: string;
++  db_type: string;
++  hosting_model: string;
++  licensing: string;
++  category: string;
++  primary_label: string;
++  cluster_info: string;
++  os: string;
++  region: string;
++  primary_nodes: number;
++  vcpu_per_node: number;
++  ram_per_node_gb: number;
++  instance_type: string;
++  instance_family?: string;
++  managed_tier_label?: string;
++  amd_preferred: boolean | null;
++  amd_available_in_region: boolean | null;
++  amd_selected: boolean | null;
++  selection_note: string;
++  total_db_ram_gb_requested: number;
++}
++
++export interface OnpremStorageSizing {
++  primary_san_gb: number;
++  reporting_san_gb: number;
++  object_storage_gb: number;
++  label_primary: string;
++  label_reporting: string;
++  label_object: string;
++}
++
++export interface GenerateOnpremEstimateRequest {
++  clientId?: string | null;
++  clientName: string;
++  database: "PostgreSQL" | "SQL Server" | "Oracle";
++  cloud: OnpremCloud;
++  region?: string | null;
++
++  namedUsers: number;
++  concurrentUsers: number;
++  concurrentMobileUsers: number;
++  totalCustomers: number;
++  numberOfLeads: number;
++  serviceRequests: number;
++
++  namedUsersYoy: number;
++  concurrentUsersYoy: number;
++  concurrentMobileUsersYoy: number;
++  totalCustomersYoy: number;
++  numberOfLeadsYoy: number;
++  serviceRequestsYoy: number;
++
++  environments: string[];
++  drScale: number;
++  contractDuration: string;
++
++  estimateNotes?: string;
++}
++
++export interface OnpremEstimateResult {
++  success: boolean;
++  estimateId: string;
++  customerName: string;
++  clientMode: "onprem";
++  cloud: OnpremCloud;
++  database: string;
++  dbSizing: { cloud: string; db_type: string; db: OnpremDbSizing; storage: OnpremStorageSizing };
++  metrics: {
++    workerNodes: number;
++    totalVcpus: number;
++    totalRamGb: number;
++    dataSizeGb: number;
++    s3SizeGb: number;
++  };
++  distribution: Record<string, unknown>;
++  excelGenerated: boolean;
++}
++
++export const onpremApi = {
++  generate: (body: GenerateOnpremEstimateRequest) =>
++    apiFetch<OnpremEstimateResult>("/api/generate-onprem-estimate", {
++      method: "POST",
++      body: JSON.stringify(body),
++    }),
++};
++
+ // ── Health ────────────────────────────────────────────────────────────────────
+ 
+ export const healthApi = {
+diff --git a/onprem_sizer.py b/onprem_sizer.py
+new file mode 100644
+index 00000000..af3a84b5
+--- /dev/null
++++ b/onprem_sizer.py
+@@ -0,0 +1,342 @@
++"""
++onprem_sizer.py — On-Premise Infrastructure Sizing Engine
++==========================================================
++Cloud-aware, database-aware sizing for On-Premise clients.
++
++Scope: SIZING ONLY. No pricing/cost figures are produced anywhere in this
++module — on-prem clients receive infrastructure sizing (node counts, vCPU,
++RAM, storage) and nothing else, per product requirement.
++
++Supported clouds:        AWS, GCP, Kubeadm, OpenShift
++Supported databases:     PostgreSQL, SQL Server, Oracle
++
++DB hosting model per cloud:
++  AWS        → Self-hosted on EC2. SQL Server = BYOL + AWS-owned Enterprise
++               license, AMD EPYC preferred (cost-effective for BYOL), falls
++               back to best available family if AMD is not offered in the
++               selected region. Oracle = self-hosted, AMD-first. PostgreSQL =
++               self-hosted, Patroni HA (same architecture as SaaS).
++  GCP        → Managed-equivalent (Cloud SQL for PostgreSQL/SQL Server,
++               Oracle via Bare Metal Solution / self-managed Compute Engine
++               equivalent sizing). AMD EPYC (N2D) preferred when available.
++               Sizing shown as a managed-tier label + underlying vCPU/RAM so
++               the result reads like a real Cloud SQL instance class.
++  Kubeadm    → Self-hosted on generic on-prem VM/bare-metal equivalent nodes.
++               Cloud-agnostic vCPU/RAM/storage sizing (no specific instance
++               catalog — customer brings their own hardware).
++  OpenShift  → Same as Kubeadm; OpenShift-flavoured cluster role labels.
++
++This module does NOT replace node_distributor.py's worker-node distribution
++(web/app tier sizing stays cloud-agnostic and is reused as-is). It only
++supplies the DB/storage sizing layer, cloud-aware, for on-prem estimates.
++"""
++from __future__ import annotations
++
++import math
++from typing import Optional
++
++# ── Reuse existing AMD-aware machine catalogs (read-only imports) ──────────
++from aws_machine_catalog import best_ec2_instance, region_families as aws_region_families
++from gcp_machine_catalog import best_gce_instance, region_families as gcp_region_families
++
++DB_HEADROOM = 1.5          # DB engines need buffer pool + OS cache headroom
++PRIMARY_NODES = 2          # Primary + standby/replica, all DBs, all clouds
++
++# AMD-first family preference (mirrors aws_pricer._ec2_sql_server_byol intent,
++# extended to all three DB types — AMD EPYC is the most cost-effective choice
++# for self-hosted, license-heavy workloads).
++_AWS_MEMORY_FAMILIES_AMD_FIRST = ["r6a", "r6i", "r5"]
++_AWS_GENERAL_FAMILIES_AMD_FIRST = ["m6a", "m6i", "m5"]
++
++
++# ── Per-DB RAM extraction (mirrors node_distributor._db_nodes) ─────────────
++
++def _total_db_ram(metrics: dict, db_type: str) -> float:
++    if db_type == "Oracle":
++        return float(metrics.get("oracle_ram_gb", 0) or 0)
++    if db_type == "SQL Server":
++        return float(metrics.get("sql_server_ram_gb", 0) or 0)
++    return float(metrics.get("postgres_ram_gb", 0) or 0)
++
++
++def _snap_to_memory_tier(ram_per_node: float) -> tuple[int, int]:
++    """Snap to the nearest standard memory-optimised tier (vcpu, ram_gb)."""
++    tiers = [(8, 32), (16, 64), (32, 128), (48, 192), (64, 256), (96, 384)]
++    for vcpu, ram in tiers:
++        if ram_per_node <= ram:
++            return vcpu, ram
++    return tiers[-1]
++
++
++def _db_compute_shape(metrics: dict, db_type: str) -> dict:
++    """
++    Compute the raw vCPU/RAM requirement per primary DB node, before any
++    cloud-specific instance selection. Shared math across all 4 clouds so
++    the same workload produces a comparable shape everywhere.
++    """
++    total_ram = _total_db_ram(metrics, db_type)
++    raw_ram_per_node = (total_ram / PRIMARY_NODES) if total_ram > 0 else 128
++    effective_ram_per_node = raw_ram_per_node * DB_HEADROOM
++    vcpu, ram = _snap_to_memory_tier(effective_ram_per_node)
++    return {
++        "total_db_ram_gb":   round(total_ram, 1),
++        "raw_ram_per_node":  round(raw_ram_per_node, 1),
++        "vcpu_per_node":     vcpu,
++        "ram_per_node":      ram,
++        "primary_nodes":     PRIMARY_NODES,
++    }
++
++
++# ── DB role labels (per db_type) ────────────────────────────────────────────
++
++def _db_labels(db_type: str) -> dict:
++    if db_type == "Oracle":
++        return {
++            "category":     "Oracle Database",
++            "primary":      "Database Server (Primary) — Oracle",
++            "cluster_info": "Active/Active RAC-equivalent",
++            "os":           "Linux/RHEL",
++        }
++    if db_type == "SQL Server":
++        return {
++            "category":     "SQL Server Database",
++            "primary":      "Database Server (Primary) — SQL Server",
++            "cluster_info": "Always On Availability Group / AD / Witness",
++            "os":           "Windows Server",
++        }
++    return {
++        "category":     "PostgreSQL Database",
++        "primary":      "Database Server (Primary) — PostgreSQL",
++        "cluster_info": "etcd + HAProxy + Patroni, pgBackRest",
++        "os":           "Linux/RHEL",
++    }
++
++
++# ── AWS: self-hosted EC2, AMD-first, BYOL for SQL Server/Oracle ────────────
++
++def size_db_aws(metrics: dict, db_type: str, region: str = "ap-south-1") -> dict:
++    """
++    AWS on-prem DB sizing: always self-hosted on EC2.
++      - SQL Server: BYOL + AWS-owned Enterprise license. AMD EPYC (r6a)
++        preferred for cost-effective BYOL; falls back automatically to the
++        best available family if AMD is not offered in the region.
++      - Oracle: self-hosted, AMD-first, same fallback behaviour.
++      - PostgreSQL: self-hosted, Patroni HA — identical architecture to the
++        SaaS deployment model, just costed/labelled for on-prem.
++    """
++    shape  = _db_compute_shape(metrics, db_type)
++    labels = _db_labels(db_type)
++    vcpu, ram = shape["vcpu_per_node"], shape["ram_per_node"]
++
++    instance = best_ec2_instance(
++        vcpu=vcpu, ram_gb=ram, region=region,
++        prefer_families=_AWS_MEMORY_FAMILIES_AMD_FIRST,
++    )
++    amd_available = "r6a" in aws_region_families(region) or "m6a" in aws_region_families(region)
++    used_amd = instance["family"].endswith("a")  # r6a / m6a
++
++    licensing = None
++    if db_type == "SQL Server":
++        licensing = "BYOL — AWS-owned Microsoft Enterprise license (customer license, AWS-hosted infra)"
++    elif db_type == "Oracle":
++        licensing = "BYOL — customer-provided Oracle license"
++    else:
++        licensing = "Open-source — no licensing cost"
++
++    return {
++        "cloud":              "AWS",
++        "db_type":             db_type,
++        "hosting_model":       "Self-Hosted (EC2)",
++        "licensing":           licensing,
++        "category":            labels["category"],
++        "primary_label":       labels["primary"],
++        "cluster_info":        labels["cluster_info"],
++        "os":                  labels["os"],
++        "region":              region,
++        "primary_nodes":       shape["primary_nodes"],
++        "vcpu_per_node":       instance["vcpu"],
++        "ram_per_node_gb":     instance["ram_gb"],
++        "instance_type":       instance["type"],
++        "instance_family":     instance["family"],
++        "amd_preferred":       True,
++        "amd_available_in_region": amd_available,
++        "amd_selected":        used_amd,
++        "selection_note": (
++            f"AMD EPYC ({instance['type']}) selected — available in {region}."
++            if used_amd else
++            f"AMD EPYC not available in {region}; best equivalent alternative selected: {instance['type']} ({instance['family']} family)."
++        ),
++        "total_db_ram_gb_requested": shape["total_db_ram_gb"],
++    }
++
++
++# ── GCP: managed-equivalent (Cloud SQL), AMD-first (N2D) ───────────────────
++
++def _cloud_sql_tier_label(vcpu: int, ram_gb: float, db_type: str) -> str:
++    """Build a Cloud-SQL-style custom tier label, e.g. db-custom-32-131072 (MB)."""
++    ram_mb = int(ram_gb * 1024)
++    if db_type == "Oracle":
++        # GCP has no native managed Oracle; Bare Metal Solution / equivalent sizing shown.
++        return f"oracle-bms-equiv-{vcpu}vcpu-{int(ram_gb)}gb"
++    return f"db-custom-{vcpu}-{ram_mb}"
++
++
++def size_db_gcp(metrics: dict, db_type: str, region: str = "asia-south1") -> dict:
++    """
++    GCP on-prem DB sizing: managed-equivalent service.
++      - PostgreSQL / SQL Server → Cloud SQL custom machine tier.
++      - Oracle → no native GCP managed Oracle; sized as the Bare Metal
++        Solution / self-managed Compute Engine equivalent (closest GCP
++        analogue), clearly labelled as such.
++    AMD EPYC (N2D) preferred when available in the region; falls back
++    automatically to N2/E2 otherwise.
++    """
++    shape  = _db_compute_shape(metrics, db_type)
++    labels = _db_labels(db_type)
++    vcpu, ram = shape["vcpu_per_node"], shape["ram_per_node"]
++
++    instance = best_gce_instance(vcpu=vcpu, ram_gb=ram, region=region, prefer_amd=True)
++    avail = gcp_region_families(region)
++    amd_available = "n2d" in avail
++    used_amd = instance["type"].startswith("n2d")
++
++    is_managed = db_type in ("PostgreSQL", "SQL Server")
++    hosting_model = "Managed (Cloud SQL)" if is_managed else "Managed-Equivalent (Bare Metal Solution)"
++    licensing = (
++        "Included in Cloud SQL managed service" if db_type == "SQL Server" else
++        "Customer-provided (Bare Metal Solution licensing)" if db_type == "Oracle" else
++        "Open-source — no licensing cost"
++    )
++
++    return {
++        "cloud":               "GCP",
++        "db_type":             db_type,
++        "hosting_model":       hosting_model,
++        "licensing":           licensing,
++        "category":            labels["category"],
++        "primary_label":       labels["primary"],
++        "cluster_info":        "Cloud SQL HA (regional)" if is_managed else labels["cluster_info"],
++        "os":                  "Managed by GCP" if is_managed else labels["os"],
++        "region":              region,
++        "primary_nodes":       shape["primary_nodes"],
++        "vcpu_per_node":       instance["vcpu"],
++        "ram_per_node_gb":     instance["ram_gb"],
++        "instance_type":       instance["type"],
++        "managed_tier_label":  _cloud_sql_tier_label(instance["vcpu"], instance["ram_gb"], db_type),
++        "amd_preferred":       True,
++        "amd_available_in_region": amd_available,
++        "amd_selected":        used_amd,
++        "selection_note": (
++            f"AMD EPYC ({instance['type']}) selected — available in {region}."
++            if used_amd else
++            f"AMD EPYC (N2D) not available in {region}; best equivalent alternative selected: {instance['type']}."
++        ),
++        "total_db_ram_gb_requested": shape["total_db_ram_gb"],
++    }
++
++
++# ── Kubeadm / OpenShift: generic self-hosted VM equivalent sizing ──────────
++
++def size_db_generic(metrics: dict, db_type: str, cluster_name: str = "Kubeadm") -> dict:
++    """
++    Cloud-agnostic on-prem DB sizing for Kubeadm / OpenShift clusters.
++    Customer brings their own hardware — no specific instance catalog is
++    applicable, so this returns raw vCPU/RAM/storage requirements snapped
++    to standard tiers, with cluster-appropriate role labels.
++    """
++    shape  = _db_compute_shape(metrics, db_type)
++    labels = _db_labels(db_type)
++
++    licensing = (
++        "BYOL — customer-provided Microsoft Enterprise license" if db_type == "SQL Server" else
++        "BYOL — customer-provided Oracle license" if db_type == "Oracle" else
++        "Open-source — no licensing cost"
++    )
++
++    return {
++        "cloud":               cluster_name,   # "Kubeadm" or "OpenShift"
++        "db_type":             db_type,
++        "hosting_model":       f"Self-Hosted (on-prem VM/bare-metal — {cluster_name})",
++        "licensing":           licensing,
++        "category":            labels["category"],
++        "primary_label":       labels["primary"],
++        "cluster_info":        labels["cluster_info"],
++        "os":                  labels["os"],
++        "region":              "On-Premise Data Center",
++        "primary_nodes":       shape["primary_nodes"],
++        "vcpu_per_node":       shape["vcpu_per_node"],
++        "ram_per_node_gb":     shape["ram_per_node"],
++        "instance_type":       f"Generic VM — {shape['vcpu_per_node']} vCPU / {shape['ram_per_node']} GB RAM",
++        "amd_preferred":       None,   # not applicable — customer hardware
++        "amd_available_in_region": None,
++        "amd_selected":        None,
++        "selection_note":      "Customer-provided hardware — sized to standard vCPU/RAM tier; no cloud instance catalog applies.",
++        "total_db_ram_gb_requested": shape["total_db_ram_gb"],
++    }
++
++
++# ── SAN / S3-equivalent storage sizing (cloud-agnostic, reused everywhere) ──
++
++def size_storage(metrics: dict, db_type: str) -> dict:
++    data_gb = int(metrics.get("data_size_gb", 2100))
++    s3_gb   = int(metrics.get("s3_size_gb", 5900))
++    return {
++        "primary_san_gb":   data_gb,
++        "reporting_san_gb": data_gb,
++        "object_storage_gb": s3_gb,
++        "label_primary":   f"Storage: SAN (Primary {db_type} DB)",
++        "label_reporting": f"Storage: SAN (Reporting {db_type} DB)",
++        "label_object":    "Object Storage (S3-equivalent)",
++    }
++
++
++# ── Public entry point ──────────────────────────────────────────────────────
++
++CLOUD_DB_SIZERS = {
++    "aws":       size_db_aws,
++    "gcp":       size_db_gcp,
++    "kubeadm":   lambda metrics, db_type, region=None: size_db_generic(metrics, db_type, "Kubeadm"),
++    "openshift": lambda metrics, db_type, region=None: size_db_generic(metrics, db_type, "OpenShift"),
++}
++
++
++def size_onprem_database(
++    metrics:  dict,
++    db_type:  str,
++    cloud:    str,
++    region:   Optional[str] = None,
++) -> dict:
++    """
++    Single entry point: route to the correct cloud-aware DB sizing function.
++
++    Args:
++        metrics:  Output of excel_handler.extract_metrics() — must contain
++                  postgres_ram_gb / sql_server_ram_gb / oracle_ram_gb,
++                  data_size_gb, s3_size_gb.
++        db_type:  "PostgreSQL" | "SQL Server" | "Oracle"
++        cloud:    "aws" | "gcp" | "kubeadm" | "openshift"
++        region:   Cloud region (AWS/GCP only; ignored for kubeadm/openshift).
++
++    Returns:
++        dict combining DB compute sizing + storage sizing. No cost figures.
++    """
++    cloud_key = (cloud or "aws").lower()
++    sizer = CLOUD_DB_SIZERS.get(cloud_key)
++    if sizer is None:
++        raise ValueError(f"Unknown on-prem cloud option: {cloud!r}. Expected one of {list(CLOUD_DB_SIZERS)}.")
++
++    if cloud_key == "aws":
++        db_result = sizer(metrics, db_type, region or "ap-south-1")
++    elif cloud_key == "gcp":
++        db_result = sizer(metrics, db_type, region or "asia-south1")
++    else:
++        db_result = sizer(metrics, db_type)
++
++    storage = size_storage(metrics, db_type)
++
++    return {
++        "cloud":   cloud_key,
++        "db_type": db_type,
++        "db":      db_result,
++        "storage": storage,
++    }
+-- 
+2.43.0
+
