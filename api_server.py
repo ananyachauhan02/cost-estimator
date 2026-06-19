@@ -1101,6 +1101,227 @@ def generate_estimate(
     }
 
 
+# ── On-Premise Sizing (separate pipeline — NO pricing, sizing only) ──────────
+
+class GenerateOnpremEstimateRequest(BaseModel):
+    """
+    Request body for the On-Premise sizing pipeline.
+    Entirely separate from GenerateEstimateRequest (SaaS) — does not affect
+    or share validation/defaults with the SaaS estimate flow.
+    """
+    # ── Identity ─────────────────────────────────────────────────────────────
+    clientId:         Optional[str]  = None
+    clientName:       str            = "Bank"
+    database:         str            = "SQL Server"   # "PostgreSQL" | "SQL Server" | "Oracle"
+    cloud:            str            = "aws"           # "aws" | "gcp" | "kubeadm" | "openshift"
+    region:           Optional[str] = None             # AWS/GCP region; ignored for kubeadm/openshift
+
+    # ── Year-1 base values (same shape as SaaS, kept independent) ───────────
+    namedUsers:              int   = 15500
+    concurrentUsers:         int   = 4650
+    concurrentMobileUsers:   int   = 0
+    totalCustomers:          int   = 25786541
+    numberOfLeads:           int   = 10700000
+    serviceRequests:         int   = 20000
+
+    namedUsersYoy:           int   = 5
+    concurrentUsersYoy:      int   = 5
+    concurrentMobileUsersYoy:int   = 5
+    totalCustomersYoy:       int   = 10
+    numberOfLeadsYoy:        int   = 10
+    serviceRequestsYoy:      int   = 5
+
+    # ── Environments & contract ──────────────────────────────────────────────
+    environments:     List[str] = []          # e.g. ["DR"], ["Pre-Prod","UAT"]
+    drScale:          int       = 100          # 50 or 100 (percent)
+    contractDuration: str       = "3 Year"
+
+    estimateNotes:    str   = ""
+
+
+@app.post("/api/generate-onprem-estimate", status_code=200)
+def generate_onprem_estimate(
+    body: GenerateOnpremEstimateRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    On-Premise sizing pipeline. SIZING ONLY — no pricing is computed or
+    returned anywhere in this route. Completely independent of
+    /api/generate-estimate (SaaS) — shares only read-only helper modules.
+
+    Steps:
+      1. write_and_recalculate / extract_metrics — same Excel template as SaaS,
+         reused because the worker-node sizing math is cloud-agnostic.
+      2. distribute_nodes — reused as-is for worker-tier sizing (web/app/infra).
+      3. onprem_sizer.size_onprem_database — NEW cloud-aware DB sizing
+         (AWS self-hosted AMD-first BYOL / GCP managed Cloud SQL / Kubeadm &
+         OpenShift generic self-hosted).
+      4. excel_exporter.generate_onprem_excel — sizing-only workbook.
+      5. database.save_estimate — persisted with client_mode="onprem",
+         pricing=None.
+    """
+    try:
+        from excel_handler import write_and_recalculate, extract_metrics
+        from node_distributor import distribute_nodes
+        from onprem_sizer import size_onprem_database
+        from excel_exporter import generate_onprem_excel
+    except ImportError as imp_err:
+        raise HTTPException(status_code=503, detail=f"Pipeline modules not available: {imp_err}")
+
+    db_type   = body.database
+    cloud     = body.cloud.lower()
+    customer_name = body.clientName
+
+    if cloud not in ("aws", "gcp", "kubeadm", "openshift"):
+        raise HTTPException(status_code=400, detail=f"Unsupported cloud option: {body.cloud!r}")
+
+    envs_lower = [e.lower() for e in body.environments]
+    include_dr = any("dr" in e for e in envs_lower)
+    dr_scale_frac = body.drScale / 100.0
+
+    years_map = {"1 Year": 1, "3 Year": 3, "5 Year": 5}
+    years     = years_map.get(body.contractDuration, 3)
+
+    client_id_int: Optional[int] = None
+    if body.clientId:
+        try:
+            client_id_int = int(body.clientId)
+        except ValueError:
+            pass
+
+    # ── STEP 1 — Same Excel template as SaaS (worker-node sizing is cloud-agnostic) ──
+    inputs = {
+        "named_users":      body.namedUsers,
+        "concurrent_users": body.concurrentUsers,
+        "total_customers":  body.totalCustomers,
+        "leads":            body.numberOfLeads,
+        "cases":            body.serviceRequests,
+        "mobile_users":     body.concurrentMobileUsers,
+        "yoy_named_users":  body.namedUsersYoy / 100.0,
+        "yoy_concurrent":   body.concurrentUsersYoy / 100.0,
+        "yoy_customers":    body.totalCustomersYoy / 100.0,
+        "yoy_leads":        body.numberOfLeadsYoy / 100.0,
+        "yoy_cases":        body.serviceRequestsYoy / 100.0,
+        "yoy_mobile":       body.concurrentMobileUsersYoy / 100.0,
+    }
+    try:
+        updated_file = write_and_recalculate(
+            inputs=inputs,
+            template_path="templates/Sizing_Template.xlsx",
+            output_path=f"reports/updated_estimate_onprem_{cloud}.xlsx",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Step 1 (Sizing Template): {exc}")
+
+    try:
+        metrics = extract_metrics(updated_file)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Step 2 (Extract metrics): {exc}")
+
+    metrics.update({
+        "mobile_users":      body.concurrentMobileUsers,
+        "db_type":           db_type,
+        "client_mode":       "onprem",
+        "cloud":             cloud,
+        "customer_name":     customer_name,
+        "total_named_users": body.namedUsers,
+    })
+
+    # ── STEP 3 — Worker-tier distribution (reused as-is; cloud-agnostic) ─────
+    workload_profile = {
+        "workload_type":   "banking_crm",
+        "peak_load":       "high",
+        "mobile_heavy":    body.concurrentMobileUsers > 3000,
+        "mobile_users":    body.concurrentMobileUsers,
+        "reporting_db":    False,
+        "high_compliance": True,
+        "db_type":         db_type,
+        "client_mode":     "onprem",
+        "notes":           "",
+    }
+    try:
+        distribution = distribute_nodes(
+            metrics=metrics,
+            workload_profile=workload_profile,
+            use_llm=True,
+            db_type=db_type,
+            dr_scale=dr_scale_frac,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Step 3 (Node distribution): {exc}")
+
+    # ── STEP 4 — Cloud-aware DB sizing (NEW — the whole point of this route) ─
+    try:
+        db_sizing = size_onprem_database(
+            metrics=metrics,
+            db_type=db_type,
+            cloud=cloud,
+            region=body.region,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Step 4 (On-Prem DB sizing): {exc}")
+
+    # ── STEP 5 — Sizing-only Excel workbook ───────────────────────────────────
+    onprem_sizing_path = None
+    try:
+        cluster_label = {"aws": "AWS", "gcp": "GCP", "kubeadm": "Kubeadm", "openshift": "OpenShift"}[cloud]
+        db_slug = db_type.lower().replace(" ", "_")
+        onprem_sizing_path = generate_onprem_excel(
+            metrics=metrics,
+            distribution=distribution,
+            customer=customer_name,
+            output_dir="reports",
+            db_type=db_type,
+            years=years,
+            filename=f"onprem_{cloud}_{db_slug}_sizing.xlsx",
+            cluster_name=cluster_label,
+            include_dr=include_dr,
+            env_names=body.environments,
+            dr_scale=dr_scale_frac,
+        )
+    except Exception as exc:
+        print(f"[api_server] WARNING Step 5 (On-Prem Excel) failed: {exc}")
+
+    # ── STEP 6 — Save to database (pricing=None always) ──────────────────────
+    try:
+        saved_id = db.save_estimate(
+            customer_name=customer_name,
+            estimate_date=datetime.utcnow(),
+            years=years,
+            metrics=metrics,
+            client_mode="onprem",
+            db_type=db_type,
+            pricing=None,
+            distribution={**distribution, "onprem_db_sizing": db_sizing, "cloud": cloud},
+            env_pricing=None,
+            cloud_sizing_path=onprem_sizing_path,
+            aws_pricing_path=None,
+            client_id=client_id_int,
+            notes=body.estimateNotes or "",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Step 6 (Save estimate): {exc}")
+
+    return {
+        "success":       True,
+        "estimateId":    str(saved_id),
+        "customerName":  customer_name,
+        "clientMode":    "onprem",
+        "cloud":         cloud,
+        "database":      db_type,
+        "dbSizing":      db_sizing,
+        "metrics": {
+            "workerNodes": metrics.get("total_workernodes", 0),
+            "totalVcpus":  metrics.get("total_vcpus_workernode", 0),
+            "totalRamGb":  metrics.get("total_memory_workernode_gb", 0),
+            "dataSizeGb":  metrics.get("data_size_gb", 0),
+            "s3SizeGb":    metrics.get("s3_size_gb", 0),
+        },
+        "distribution":  distribution,
+        "excelGenerated": bool(onprem_sizing_path),
+    }
+
+
 # ── Pricing Cache ─────────────────────────────────────────────────────────────
 
 import json as _json

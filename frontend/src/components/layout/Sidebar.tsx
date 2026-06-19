@@ -12,6 +12,7 @@ import {
   Bot,
   Settings,
   Cloud,
+  Server,
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,10 @@ const navItems = [
   { icon: BarChart3, label: "Reports", href: "/reports" },
   { icon: Bot, label: "AI Assistant", href: "/ai-assistant" },
   { icon: Settings, label: "Settings", href: "/settings" },
+];
+
+const onpremNavItems = [
+  { icon: Server, label: "On-Premise Sizing", href: "/onprem/estimate/new" },
 ];
 
 
@@ -82,6 +87,40 @@ export default function Sidebar() {
         })}
 
       </nav>
+
+      {/* On-Premise section — visually distinct (amber) from SaaS main menu */}
+      <div className="px-3 py-4 border-t border-white/10">
+        <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider px-3 mb-3">
+          On-Premise
+        </p>
+        {onpremNavItems.map((item) => {
+          const isActive = pathname.startsWith(item.href) || pathname.startsWith("/onprem");
+          return (
+            <Link key={item.href} href={item.href}>
+              <motion.div
+                whileHover={{ x: 2 }}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer group",
+                  isActive
+                    ? "text-white shadow-lg"
+                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                )}
+                style={
+                  isActive
+                    ? { background: "linear-gradient(135deg, rgba(217,119,6,0.3), rgba(180,83,9,0.2))", borderLeft: "2px solid #d97706" }
+                    : {}
+                }
+              >
+                <item.icon className={cn("w-4 h-4 flex-shrink-0", isActive ? "text-amber-400" : "text-slate-500 group-hover:text-slate-300")} />
+                <span>{item.label}</span>
+                {isActive && (
+                  <ChevronRight className="w-3 h-3 ml-auto text-amber-400" />
+                )}
+              </motion.div>
+            </Link>
+          );
+        })}
+      </div>
     </aside>
   );
 }

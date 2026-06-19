@@ -229,6 +229,97 @@ export const estimatesApi = {
     `${API_URL}/api/estimates/${id}/download-all`,
 };
 
+// ── On-Premise Sizing (separate from SaaS — sizing only, no pricing) ──────────
+
+export type OnpremCloud = "aws" | "gcp" | "kubeadm" | "openshift";
+
+export interface OnpremDbSizing {
+  cloud: string;
+  db_type: string;
+  hosting_model: string;
+  licensing: string;
+  category: string;
+  primary_label: string;
+  cluster_info: string;
+  os: string;
+  region: string;
+  primary_nodes: number;
+  vcpu_per_node: number;
+  ram_per_node_gb: number;
+  instance_type: string;
+  instance_family?: string;
+  managed_tier_label?: string;
+  amd_preferred: boolean | null;
+  amd_available_in_region: boolean | null;
+  amd_selected: boolean | null;
+  selection_note: string;
+  total_db_ram_gb_requested: number;
+}
+
+export interface OnpremStorageSizing {
+  primary_san_gb: number;
+  reporting_san_gb: number;
+  object_storage_gb: number;
+  label_primary: string;
+  label_reporting: string;
+  label_object: string;
+}
+
+export interface GenerateOnpremEstimateRequest {
+  clientId?: string | null;
+  clientName: string;
+  database: "PostgreSQL" | "SQL Server" | "Oracle";
+  cloud: OnpremCloud;
+  region?: string | null;
+
+  namedUsers: number;
+  concurrentUsers: number;
+  concurrentMobileUsers: number;
+  totalCustomers: number;
+  numberOfLeads: number;
+  serviceRequests: number;
+
+  namedUsersYoy: number;
+  concurrentUsersYoy: number;
+  concurrentMobileUsersYoy: number;
+  totalCustomersYoy: number;
+  numberOfLeadsYoy: number;
+  serviceRequestsYoy: number;
+
+  environments: string[];
+  drScale: number;
+  contractDuration: string;
+
+  estimateNotes?: string;
+}
+
+export interface OnpremEstimateResult {
+  success: boolean;
+  estimateId: string;
+  customerName: string;
+  clientMode: "onprem";
+  cloud: OnpremCloud;
+  database: string;
+  dbSizing: { cloud: string; db_type: string; db: OnpremDbSizing; storage: OnpremStorageSizing };
+  metrics: {
+    workerNodes: number;
+    totalVcpus: number;
+    totalRamGb: number;
+    dataSizeGb: number;
+    s3SizeGb: number;
+  };
+  distribution: Record<string, unknown>;
+  excelGenerated: boolean;
+}
+
+export const onpremApi = {
+  generate: (body: GenerateOnpremEstimateRequest) =>
+    apiFetch<OnpremEstimateResult>("/api/generate-onprem-estimate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+};
+
 // ── Health ────────────────────────────────────────────────────────────────────
 
 export const healthApi = {
