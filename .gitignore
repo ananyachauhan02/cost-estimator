@@ -7,3 +7,7 @@ local_postgres/
 k8s-deployment.yaml
 .env
 k8s-deployment.yaml
+frontend/node_modules/
+frontend/.next/
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
